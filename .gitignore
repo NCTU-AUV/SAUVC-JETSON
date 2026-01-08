@@ -1,0 +1,8 @@
+**/.git/
+**/__pycache__/
+
+test_utils/
+
+.vscode/
+.idea/
+*.swp
