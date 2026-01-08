@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>decision_interface</name>
+  <version>0.0.1</version>
+  <description>
+    Common interfaces (msg/srv/action) for decision modules.
+  </description>
+
+  <maintainer email="you@example.com">orca_auv</maintainer>
+  <license>Apache-2.0</license>
+
+  <!-- Build system -->
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <!-- Message generation -->
+  <build_depend>rosidl_default_generators</build_depend>
+  <exec_depend>rosidl_default_runtime</exec_depend>
+
+  <!-- Message dependencies -->
+  <depend>std_msgs</depend>
+
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+
+  <member_of_group>rosidl_interface_packages</member_of_group>
+</package>

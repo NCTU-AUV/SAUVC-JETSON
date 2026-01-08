@@ -1,0 +1,21 @@
+# Start from the Isaac ROS development image
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
+
+# Install additional ROS packages
+RUN apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+    ros-humble-isaac-ros-yolov8 \
+    ros-humble-isaac-ros-dnn-image-encoder \
+    ros-humble-isaac-ros-tensor-rt \
+ && rm -rf /var/lib/apt/lists/*
+
+RUN apt-get update && apt-get install -y lsb-release gnupg curl && \
+    curl https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
+        | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null && \
+    apt-get update -y && \
+    apt-get install -y ignition-fortress ros-humble-ros-gz && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY scripts/entrypoint_orca25.sh /usr/local/bin/scripts/entrypoint_additions/
+RUN echo "source /usr/local/bin/scripts/entrypoint_additions/entrypoint_orca25.sh" >> /etc/bash.bashrc

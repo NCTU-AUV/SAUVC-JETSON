@@ -1,0 +1,8 @@
+mission_name: test
+
+actions:
+  - type: Hover
+    duration_s: 3.0
+
+  - type: SearchTarget
+    target_type: 2
