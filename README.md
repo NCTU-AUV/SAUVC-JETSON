@@ -23,6 +23,9 @@ This repository should contain all the codes that need to be run on the Jetson O
    ```
 
 ## Demo
+- Run the following nodes each in separated terminals
+- Constantly check `ros2 node/topic list/info/echo` to better understand the role of each nodes and what happens on starting/aborting them.
+- View the structure of different packages, go through the source codes to get clearer insight.
 
 ### Gazebo Simulation
 - Launch the environment</br>
