@@ -8,6 +8,11 @@ This repository should contain all the codes that need to be run on the Jetson O
 2. ```
    cd $ISAAC_ROS_WS/src
    git clone --recurse-submodules git@github.com:NCTU-AUV/SAUVC-JETSON.git
+
+   # move everything in src/SAUVC-JETSON/ to src/
+   mv SAUVC-JETSON/* .
+   mv SAUVC-JETSON/.g* .
+   rm -rf SAUVC-JETSON
    ```
 3. Set alias for convenience. Afterward, to access a new shell into the same container, just open a new terminal and run `isa`
    ```
