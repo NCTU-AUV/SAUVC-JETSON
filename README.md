@@ -23,8 +23,8 @@ This repository should contain all the codes that need to be run on the Jetson O
    This build the required image and enter bash, take a long time (40 min on my laptop)
 4. ```
    cd $ISAAC_ROS_WS
-   colcon build --symlink_install
-   source install/setup/bash
+   colcon build --symlink-install
+   source install/setup.bash
    ```
 
 ## Demo
