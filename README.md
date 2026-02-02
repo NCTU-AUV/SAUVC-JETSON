@@ -32,7 +32,7 @@ This repository should contain all the codes that need to be run on the Jetson O
 `ros2 launch sauvc_sim sauvc25_launch.py`
   
 - Keyboard control and video capturing</br>
-`ros2 run sauvc_sim teleop25.py`
+`ros2 run sauvc_sim teleop25.py --ros-args -r /cmd_vel:=/fsm/cmd_vel`
 
 ### Yolov8 Object Detection
 1. Modify line 58 in `isaac_ros_yolov8/src/yolov8_decoder_node.cpp` where # of classes is hard coded, see [issue 32](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_object_detection/issues/32#issuecomment-1827859460).
@@ -71,10 +71,10 @@ This repository should contain all the codes that need to be run on the Jetson O
 
 ### Depth Perception
 - Enable visualization for debug (default)</br>
-`ros2 launch depth_perception depth_estimation.launch.py use_viz:=true`
+`ros2 launch depth_perception depth_perception.launch.py use_viz:=true`
 
 - Disable visualization for competition runs</br>
-`ros2 launch depth_perception depth_estimation.launch.py use_viz:=false`
+`ros2 launch depth_perception depth_perception.launch.py use_viz:=false`
 
 ### fsm_decision
 1. Run the decision node</br>

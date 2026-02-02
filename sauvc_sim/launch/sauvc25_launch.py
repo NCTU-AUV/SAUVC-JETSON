@@ -31,7 +31,7 @@ def generate_launch_description():
         package='ros_gz_bridge',
         executable='parameter_bridge',
         remappings=[
-            ('/fsm/cmd_vel', '/cmd_vel'),
+            ('/cmd_vel', '/fsm/cmd_vel'),
         ],
         arguments=[
             '/cmd_vel@geometry_msgs/msg/Twist]ignition.msgs.Twist',
