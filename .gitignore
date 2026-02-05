@@ -6,3 +6,5 @@ test_utils/
 .vscode/
 .idea/
 *.swp
+
+*.plan
