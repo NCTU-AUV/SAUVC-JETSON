@@ -13,15 +13,20 @@ This repository should contain all the codes that need to be run on the Jetson O
    mv SAUVC-JETSON/* .
    mv SAUVC-JETSON/.g* .
    rm -rf SAUVC-JETSON
+   ```   
+3. To include our custom image layers
    ```
-3. Set alias for convenience. Afterward, to access a new shell into the same container, just open a new terminal and run `isa`
+   touch ~/.isaac_ros_common-config
+   echo "CONFIG_IMAGE_KEY=ros2_humble.realsense.orca25" >> ~/.isaac_ros_common-config
+   ```
+4. Set alias for convenience. Afterward, to access a new shell into the same container, just open a new terminal and run `isa`
    ```
    echo "alias isa='cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common && ./scripts/run_dev.sh' >> ~/.bashrc
    source ~/.bashrc
    isa
    ```
    This build the required image and enter bash, take a long time (40 min on my laptop)
-4. ```
+5. ```
    cd $ISAAC_ROS_WS
    colcon build --symlink-install
    source install/setup.bash
