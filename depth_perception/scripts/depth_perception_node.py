@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 import rclpy
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 
 import numpy as np
 import cv2
 from cv_bridge import CvBridge
 
 from sensor_msgs.msg import Image
+from std_msgs.msg import Header, String
 from vision_msgs.msg import Detection2DArray
-from std_msgs.msg import Header
 
 from depth_perception.msg import PerceptionArray, PerceptionObject
 
@@ -20,31 +21,81 @@ class DepthPerceptionNode(Node):
 
         self.bridge = CvBridge()
         self.depth_img = None
+        self.current_mode = 'realsense'
 
+        # ── QoS profiles ──────────────────────────────────────
+        sensor_qos = QoSProfile(
+            reliability=ReliabilityPolicy.BEST_EFFORT,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        reliable_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=10
+        )
+
+        mode_qos = QoSProfile(
+            reliability=ReliabilityPolicy.RELIABLE,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            history=HistoryPolicy.KEEP_LAST,
+            depth=1
+        )
+
+        # ── Subscriptions ─────────────────────────────────────
         self.create_subscription(
             Image,
-            '/realsense/depth_image',
+            '/orca/D435i/aligned_depth_to_color/image_raw',
             self.depth_cb,
-            10
+            sensor_qos
         )
 
         self.create_subscription(
             Detection2DArray,
             '/detections_output',
             self.detection_cb,
-            10
+            reliable_qos
         )
 
+        self.create_subscription(
+            String,
+            '/orca/camera_mode',
+            self.mode_cb,
+            mode_qos
+        )
+
+        # ── Publisher ──────────────────────────────────────────
         self.pub = self.create_publisher(
             PerceptionArray,
             '/perception_array',
-            10
+            reliable_qos
         )
 
+    def mode_cb(self, msg: String):
+        if msg.data in ('realsense', 'usb'):
+            if self.current_mode != msg.data:
+                self.get_logger().info(
+                    f'Depth perception mode: {self.current_mode} -> {msg.data}')
+                self.current_mode = msg.data
+        else:
+            self.get_logger().warn(
+                f'Unknown camera mode: {msg.data}')
+
     def depth_cb(self, msg: Image):
-        self.depth_img = self.bridge.imgmsg_to_cv2(msg, desired_encoding='passthrough')
+        self.depth_img = self.bridge.imgmsg_to_cv2(
+            msg, desired_encoding='passthrough')
 
     def detection_cb(self, msg: Detection2DArray):
+        # ── Gate: only process when RealSense is active ───────
+        if self.current_mode != 'realsense':
+            out = PerceptionArray()
+            out.header = Header()
+            out.header.stamp = msg.header.stamp
+            out.header.frame_id = 'realsense'
+            self.pub.publish(out)
+            return
+
         if self.depth_img is None:
             return
 
@@ -87,7 +138,8 @@ class DepthPerceptionNode(Node):
                     col = col[col > 0.3]  # remove noise
 
                     if len(col) > 30:
-                        column_depths.append((u, np.percentile(col, 30)))
+                        column_depths.append(
+                            (u, np.percentile(col, 30)))
 
                 if len(column_depths) >= 2:
                     left = min(column_depths, key=lambda x: x[0])
