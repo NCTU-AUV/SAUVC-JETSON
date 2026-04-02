@@ -30,12 +30,12 @@ CameraSelectorNode::CameraSelectorNode(const rclcpp::NodeOptions & options)
 
   // ── Subscriptions ─────────────────────────────────────────────
   sub_realsense_ = this->create_subscription<sensor_msgs::msg::Image>(
-    "/orca/D435i/color/image_raw",
+    "/orca/color/image_raw",
     sensor_qos,
     std::bind(&CameraSelectorNode::realsense_callback, this, std::placeholders::_1));
 
   sub_realsense_info_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-    "/orca/D435i/color/camera_info",
+    "/orca/color/camera_info",
     sensor_qos,
     std::bind(&CameraSelectorNode::realsense_info_callback, this, std::placeholders::_1));
 

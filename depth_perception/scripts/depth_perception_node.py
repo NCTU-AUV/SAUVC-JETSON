@@ -46,7 +46,7 @@ class DepthPerceptionNode(Node):
         # ── Subscriptions ─────────────────────────────────────
         self.create_subscription(
             Image,
-            '/orca/D435i/aligned_depth_to_color/image_raw',
+            '/orca/aligned_depth_to_color/image_raw',
             self.depth_cb,
             sensor_qos
         )
