@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fsm_decision.actions.hover import HoverAction
 from fsm_decision.actions.searchtarget import SearchTargetAction
+from fsm_decision.actions.approachtarget import ApproachTargetAction
 
 # 之後會加：
 # from fsm_decision.actions.move_forward import MoveForwardAction
@@ -17,6 +18,7 @@ ACTION_REGISTRY = {
     # 'MoveForward': MoveForwardAction,
     # 'RotateYaw': RotateYawAction,
     'SearchTarget': SearchTargetAction,
+    'ApproachTarget': ApproachTargetAction,
 }
 
 

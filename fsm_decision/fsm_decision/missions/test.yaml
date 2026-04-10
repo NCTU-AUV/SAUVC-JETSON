@@ -6,3 +6,13 @@ actions:
 
   - type: SearchTarget
     target_type: 2
+
+  - type: ApproachTarget
+    target_type: 2
+    approach_speed: 0.25
+    stop_distance: 2.5
+    image_width: 640
+    kp_y: 0.002
+    max_lateral_speed: 0.3
+    stable_count: 5
+    timeout_s: 40.0
