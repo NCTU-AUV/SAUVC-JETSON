@@ -18,16 +18,27 @@ class DepthPerceptionVizNode(Node):
         self.image = None
         self.objects = []
 
+        # ── Declare parameters ─────────────────────────────────────
+        self.declare_parameter('viz_image_topic',      '/yolov8_processed_image')
+        self.declare_parameter('viz_perception_topic', '/perception_array')
+        self.declare_parameter('viz_native_width',     1280)
+        self.declare_parameter('viz_native_height',    720)
+
+        viz_image_topic      = self.get_parameter('viz_image_topic').value
+        viz_perception_topic = self.get_parameter('viz_perception_topic').value
+        self.viz_native_width  = self.get_parameter('viz_native_width').value
+        self.viz_native_height = self.get_parameter('viz_native_height').value
+
         self.create_subscription(
             Image,
-            '/yolov8_processed_image',
+            viz_image_topic,
             self.image_cb,
             10
         )
 
         self.create_subscription(
             PerceptionArray,
-            '/perception_array',
+            viz_perception_topic,
             self.perception_cb,
             10
         )
@@ -46,10 +57,10 @@ class DepthPerceptionVizNode(Node):
         img = self.image.copy()
 
         h, w = img.shape[:2]
-        # Coordinates in perception_array are scaled to the native 1280x720 RealSense image
-        # We must scale them back to the visualization window size (which is usually the 640x640 YOLO overlay)
-        scale_x = w / 1280.0
-        scale_y = h / 720.0
+        # Coordinates in perception_array are scaled to the native RealSense image.
+        # Scale them back to the visualization window size (usually the 640x640 YOLO overlay).
+        scale_x = w / float(self.viz_native_width)
+        scale_y = h / float(self.viz_native_height)
 
         for obj in self.objects:
             cx = obj.cx * scale_x

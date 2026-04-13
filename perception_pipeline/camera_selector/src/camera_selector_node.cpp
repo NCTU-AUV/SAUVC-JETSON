@@ -12,9 +12,27 @@ namespace camera_selector
 {
 
 CameraSelectorNode::CameraSelectorNode(const rclcpp::NodeOptions & options)
-: Node("camera_selector_node", options),
-  current_mode_("realsense")
+: Node("camera_selector_node", options)
 {
+  // ── Declare parameters (values come from YAML / ROS param server) ──
+  this->declare_parameter<std::string>("realsense_image_topic", "/orca/color/image_raw");
+  this->declare_parameter<std::string>("realsense_info_topic",  "/orca/color/camera_info");
+  this->declare_parameter<std::string>("usb_image_topic",       "/orca/usb_cam/image_raw");
+  this->declare_parameter<std::string>("usb_info_topic",        "/orca/usb_cam/camera_info");
+  this->declare_parameter<std::string>("mode_topic",            "/orca/camera_mode");
+  this->declare_parameter<std::string>("selected_image_topic",  "/orca/selected/image_raw");
+  this->declare_parameter<std::string>("selected_info_topic",   "/orca/selected/camera_info");
+  this->declare_parameter<std::string>("default_mode",          "realsense");
+
+  const auto realsense_image_topic = this->get_parameter("realsense_image_topic").as_string();
+  const auto realsense_info_topic  = this->get_parameter("realsense_info_topic").as_string();
+  const auto usb_image_topic       = this->get_parameter("usb_image_topic").as_string();
+  const auto usb_info_topic        = this->get_parameter("usb_info_topic").as_string();
+  const auto mode_topic            = this->get_parameter("mode_topic").as_string();
+  const auto selected_image_topic  = this->get_parameter("selected_image_topic").as_string();
+  const auto selected_info_topic   = this->get_parameter("selected_info_topic").as_string();
+  current_mode_                    = this->get_parameter("default_mode").as_string();
+
   // ── QoS profiles ──────────────────────────────────────────────
   // Sensor data: best-effort, volatile, keep-last(1)
   auto sensor_qos = rclcpp::SensorDataQoS();
@@ -30,37 +48,37 @@ CameraSelectorNode::CameraSelectorNode(const rclcpp::NodeOptions & options)
 
   // ── Subscriptions ─────────────────────────────────────────────
   sub_realsense_ = this->create_subscription<sensor_msgs::msg::Image>(
-    "/orca/color/image_raw",
+    realsense_image_topic,
     sensor_qos,
     std::bind(&CameraSelectorNode::realsense_callback, this, std::placeholders::_1));
 
   sub_realsense_info_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-    "/orca/color/camera_info",
+    realsense_info_topic,
     sensor_qos,
     std::bind(&CameraSelectorNode::realsense_info_callback, this, std::placeholders::_1));
 
   sub_usb_ = this->create_subscription<sensor_msgs::msg::Image>(
-    "/orca/usb_cam/image_raw",
+    usb_image_topic,
     sensor_qos,
     std::bind(&CameraSelectorNode::usb_callback, this, std::placeholders::_1));
 
   sub_usb_info_ = this->create_subscription<sensor_msgs::msg::CameraInfo>(
-    "/orca/usb_cam/camera_info",
+    usb_info_topic,
     sensor_qos,
     std::bind(&CameraSelectorNode::usb_info_callback, this, std::placeholders::_1));
 
   sub_mode_ = this->create_subscription<std_msgs::msg::String>(
-    "/orca/camera_mode",
+    mode_topic,
     mode_qos,
     std::bind(&CameraSelectorNode::mode_callback, this, std::placeholders::_1));
 
   // ── Publisher ─────────────────────────────────────────────────
   pub_selected_ = this->create_publisher<sensor_msgs::msg::Image>(
-    "/orca/selected/image_raw",
+    selected_image_topic,
     pub_qos);
 
   pub_selected_info_ = this->create_publisher<sensor_msgs::msg::CameraInfo>(
-    "/orca/selected/camera_info",
+    selected_info_topic,
     pub_qos);
 
   RCLCPP_INFO(this->get_logger(),

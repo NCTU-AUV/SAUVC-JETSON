@@ -29,35 +29,6 @@ from rclpy.node import Node
 from sensor_msgs.msg import Image
 from vision_msgs.msg import Detection2DArray
 
-# real
-'''names = {
-
-    0: 'blue_drum',
-    1: 'blue_flare',
-    2: 'gate',
-    3: 'gate_side',
-    4: 'metal_ball',
-    5: 'orange_flare',
-    6: 'qulification_gate',
-    7: 'red_drum',
-    8: 'red_fare',
-    9: 'yellow_flare',
-
-}'''
-
-# sim
-names = {
-
-    0: 'blue_drum',
-    1: 'blue_flare',
-    2: 'gate',
-    3: 'metal_ball',
-    4: 'orange_flare',
-    5: 'red_fare',
-    6: 'yellow_flare',
-
-}
-
 
 class Yolov8Visualizer(Node):
     QUEUE_SIZE = 10
@@ -67,8 +38,25 @@ class Yolov8Visualizer(Node):
     def __init__(self):
         super().__init__('yolov8_visualizer')
         self._bridge = cv_bridge.CvBridge()
+
+        # ── Declare parameters ─────────────────────────────────────
+        # `names` is an ordered list: index 0 → class 0 label, etc.
+        default_names = [
+            'blue_drum', 'blue_flare', 'gate', 'metal_ball',
+            'orange_flare', 'red_fare', 'yellow_flare',
+        ]
+        self.declare_parameter('names', default_names)
+
+        names_list = self.get_parameter('names').value
+        # Build index → label lookup
+        self._names = {i: label for i, label in enumerate(names_list)}
+
+        self.get_logger().info(
+            f'YOLOv8 visualizer loaded {len(self._names)} class labels: '
+            + ', '.join(f'{i}:{v}' for i, v in self._names.items()))
+
         self._processed_image_pub = self.create_publisher(
-            Image, 'yolov8_processed_image',  self.QUEUE_SIZE)
+            Image, 'yolov8_processed_image', self.QUEUE_SIZE)
 
         self._detections_subscription = message_filters.Subscriber(
             self,
@@ -94,7 +82,8 @@ class Yolov8Visualizer(Node):
             width = detection.bbox.size_x
             height = detection.bbox.size_y
 
-            label = names[int(detection.results[0].hypothesis.class_id)]
+            class_idx = int(detection.results[0].hypothesis.class_id)
+            label = self._names.get(class_idx, str(class_idx))
             conf_score = detection.results[0].hypothesis.score
             label = f'{label} {conf_score:.2f}'
 

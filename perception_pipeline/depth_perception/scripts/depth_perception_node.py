@@ -21,9 +21,25 @@ class DepthPerceptionNode(Node):
 
         self.bridge = CvBridge()
         self.depth_img = None
+
+        # ── Declare parameters ─────────────────────────────────────
+        self.declare_parameter('depth_image_topic',       '/orca/aligned_depth_to_color/image_raw')
+        self.declare_parameter('detections_topic',        '/detections_output')
+        self.declare_parameter('mode_topic',              '/orca/camera_mode')
+        self.declare_parameter('perception_output_topic', '/perception_array')
+        self.declare_parameter('yolo_input_width',        640)
+        self.declare_parameter('yolo_input_height',       640)
+
+        depth_image_topic       = self.get_parameter('depth_image_topic').value
+        detections_topic        = self.get_parameter('detections_topic').value
+        mode_topic              = self.get_parameter('mode_topic').value
+        perception_output_topic = self.get_parameter('perception_output_topic').value
+        self.yolo_input_width   = self.get_parameter('yolo_input_width').value
+        self.yolo_input_height  = self.get_parameter('yolo_input_height').value
+
         self.current_mode = 'realsense'
 
-        # ── QoS profiles ──────────────────────────────────────
+        # ── QoS profiles ──────────────────────────────────────────
         sensor_qos = QoSProfile(
             reliability=ReliabilityPolicy.BEST_EFFORT,
             history=HistoryPolicy.KEEP_LAST,
@@ -43,32 +59,32 @@ class DepthPerceptionNode(Node):
             depth=1
         )
 
-        # ── Subscriptions ─────────────────────────────────────
+        # ── Subscriptions ─────────────────────────────────────────
         self.create_subscription(
             Image,
-            '/orca/aligned_depth_to_color/image_raw',
+            depth_image_topic,
             self.depth_cb,
             sensor_qos
         )
 
         self.create_subscription(
             Detection2DArray,
-            '/detections_output',
+            detections_topic,
             self.detection_cb,
             reliable_qos
         )
 
         self.create_subscription(
             String,
-            '/orca/camera_mode',
+            mode_topic,
             self.mode_cb,
             mode_qos
         )
 
-        # ── Publisher ──────────────────────────────────────────
+        # ── Publisher ──────────────────────────────────────────────
         self.pub = self.create_publisher(
             PerceptionArray,
-            '/perception_array',
+            perception_output_topic,
             reliable_qos
         )
 
@@ -112,11 +128,10 @@ class DepthPerceptionNode(Node):
         out.header.frame_id = 'realsense'
 
         for det in msg.detections:
-            # Detections are relative to the YOLO input tensor (typically 640x640)
+            # Detections are relative to the YOLO input tensor (configurable size)
             # Need to scale them up to the native depth image dimensions (w, h)
-            # YOLO defaults to 640x640 stretch in Isaac ROS dnn_image_encoder
-            scale_x = w / 640.0
-            scale_y = h / 640.0
+            scale_x = w / float(self.yolo_input_width)
+            scale_y = h / float(self.yolo_input_height)
 
             cx = int(det.bbox.center.position.x * scale_x)
             cy = int(det.bbox.center.position.y * scale_y)

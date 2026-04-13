@@ -3,9 +3,10 @@ project(orca_perception)
 
 find_package(ament_cmake REQUIRED)
 
-# Install launch files
+# Install launch and config files
 install(DIRECTORY
   launch
+  config
   DESTINATION share/${PROJECT_NAME}
 )
 
