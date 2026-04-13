@@ -46,7 +46,7 @@ class DepthPerceptionNode(Node):
         # ── Subscriptions ─────────────────────────────────────
         self.create_subscription(
             Image,
-            '/orca/D435i/aligned_depth_to_color/image_raw',
+            '/orca/aligned_depth_to_color/image_raw',
             self.depth_cb,
             sensor_qos
         )
@@ -83,8 +83,14 @@ class DepthPerceptionNode(Node):
                 f'Unknown camera mode: {msg.data}')
 
     def depth_cb(self, msg: Image):
-        self.depth_img = self.bridge.imgmsg_to_cv2(
+        cv_img = self.bridge.imgmsg_to_cv2(
             msg, desired_encoding='passthrough')
+        
+        if msg.encoding in ['16UC1', 'mono16'] or cv_img.dtype == np.uint16:
+            # RealSense 16UC1 depth goes in millimeters, convert to meters
+            self.depth_img = cv_img.astype(np.float32) / 1000.0
+        else:
+            self.depth_img = cv_img.astype(np.float32)
 
     def detection_cb(self, msg: Detection2DArray):
         # ── Gate: only process when RealSense is active ───────
@@ -106,10 +112,16 @@ class DepthPerceptionNode(Node):
         out.header.frame_id = 'realsense'
 
         for det in msg.detections:
-            cx = int(det.bbox.center.position.x)
-            cy = int(det.bbox.center.position.y)
-            bw = int(det.bbox.size_x)
-            bh = int(det.bbox.size_y)
+            # Detections are relative to the YOLO input tensor (typically 640x640)
+            # Need to scale them up to the native depth image dimensions (w, h)
+            # YOLO defaults to 640x640 stretch in Isaac ROS dnn_image_encoder
+            scale_x = w / 640.0
+            scale_y = h / 640.0
+
+            cx = int(det.bbox.center.position.x * scale_x)
+            cy = int(det.bbox.center.position.y * scale_y)
+            bw = int(det.bbox.size_x * scale_x)
+            bh = int(det.bbox.size_y * scale_y)
 
             x1 = max(0, cx - bw // 2)
             x2 = min(w - 1, cx + bw // 2)
@@ -154,11 +166,27 @@ class DepthPerceptionNode(Node):
 
             # ===== Non-gate objects =====
             else:
-                roi = self.depth_img[y1:y2, x1:x2]
+                # Sample the center 50% region to avoid large background depths at the edges
+                cw, ch = bw * 0.5, bh * 0.5
+                c_x1 = max(0, int(cx - cw // 2))
+                c_x2 = min(w - 1, int(cx + cw // 2))
+                c_y1 = max(0, int(cy - ch // 2))
+                c_y2 = min(h - 1, int(cy + ch // 2))
+
+                roi = self.depth_img[c_y1:c_y2, c_x1:c_x2]
                 roi = roi[np.isfinite(roi)]
                 roi = roi[roi > 0.3]
-                if len(roi) > 50:
-                    z = float(np.percentile(roi, 30))
+
+                # Fallback to full bbox if center crop has no valid depth
+                if len(roi) < 5:
+                    self.get_logger().info(f"Fallback to bbox: length of center crop roi was {len(roi)}")
+                    roi = self.depth_img[y1:y2, x1:x2]
+                    roi = roi[np.isfinite(roi)]
+                    roi = roi[roi > 0.3]
+                
+                if len(roi) > 0:
+                    # 10th percentile gives robust front edge of the object
+                    z = float(np.percentile(roi, 10))
                     valid = True
 
             obj.distance = float(z) if valid else -1.0

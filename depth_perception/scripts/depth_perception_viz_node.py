@@ -45,24 +45,36 @@ class DepthPerceptionVizNode(Node):
 
         img = self.image.copy()
 
+        h, w = img.shape[:2]
+        # Coordinates in perception_array are scaled to the native 1280x720 RealSense image
+        # We must scale them back to the visualization window size (which is usually the 640x640 YOLO overlay)
+        scale_x = w / 1280.0
+        scale_y = h / 720.0
+
         for obj in self.objects:
-            x1 = int(obj.cx - obj.width / 2)
-            y1 = int(obj.cy - obj.height / 2)
-            x2 = int(obj.cx + obj.width / 2)
-            y2 = int(obj.cy + obj.height / 2)
+            cx = obj.cx * scale_x
+            cy = obj.cy * scale_y
+            bw = obj.width * scale_x
+            bh = obj.height * scale_y
+
+            x1 = int(cx - bw / 2)
+            y1 = int(cy - bh / 2)
+            x2 = int(cx + bw / 2)
+            y2 = int(cy + bh / 2)
 
             color = (0, 255, 0) if obj.valid else (0, 0, 255)
             cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
 
             label = f"{obj.class_name} {obj.distance:.2f}m"
+            
             cv2.putText(
-                img,
-                label,
-                (x1, y2 + 15),
-                cv2.FONT_HERSHEY_SIMPLEX,
-                0.5,
-                color,
-                2
+                 img,
+                 label,
+                 (x1, y2+15),
+                 cv2.FONT_HERSHEY_SIMPLEX,
+                 0.5,
+                 color,
+                 2
             )
 
         cv2.imshow('Depth Perception Viz', img)

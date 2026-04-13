@@ -101,8 +101,8 @@ def generate_launch_description():
             'attach_to_shared_component_container': 'True',
             'component_container_name': 'tensor_rt_container',
             'dnn_image_encoder_namespace': 'yolov8_encoder',
-            'image_input_topic': '/orca/D435i/color/image_raw',
-            'camera_info_input_topic': '/orca/D435i/color/camera_info',
+            'image_input_topic': '/orca/color/image_raw',
+            'camera_info_input_topic': '/orca/color/camera_info',
             'tensor_output_topic': '/tensor_pub',
         }.items(),
     )

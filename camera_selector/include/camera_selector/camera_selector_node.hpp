@@ -24,10 +24,10 @@ private:
   /// Callback for /orca/camera_mode
   void mode_callback(const std_msgs::msg::String::SharedPtr msg);
 
-  /// Callback for /orca/D435i/color/image_raw
+  /// Callback for /orca/color/image_raw
   void realsense_callback(sensor_msgs::msg::Image::UniquePtr msg);
 
-  /// Callback for /orca/D435i/color/camera_info
+  /// Callback for /orca/color/camera_info
   void realsense_info_callback(sensor_msgs::msg::CameraInfo::SharedPtr msg);
 
   /// Callback for /orca/usb_cam/image_raw
