@@ -6,7 +6,7 @@ import cv2
 from cv_bridge import CvBridge
 
 from sensor_msgs.msg import Image
-from depth_perception.msg import PerceptionArray
+from orca_interface.msg import PerceptionArray
 
 
 class DepthPerceptionVizNode(Node):
@@ -20,7 +20,7 @@ class DepthPerceptionVizNode(Node):
 
         # ── Declare parameters ─────────────────────────────────────
         self.declare_parameter('viz_image_topic',      '/yolov8_processed_image')
-        self.declare_parameter('viz_perception_topic', '/perception_array')
+        self.declare_parameter('viz_perception_topic', '/orca/perception_array')
         self.declare_parameter('viz_native_width',     1280)
         self.declare_parameter('viz_native_height',    720)
 
@@ -57,35 +57,37 @@ class DepthPerceptionVizNode(Node):
         img = self.image.copy()
 
         h, w = img.shape[:2]
-        # Coordinates in perception_array are scaled to the native RealSense image.
-        # Scale them back to the visualization window size (usually the 640x640 YOLO overlay).
-        scale_x = w / float(self.viz_native_width)
-        scale_y = h / float(self.viz_native_height)
+        # Coordinates in PerceptionObject are in YOLO input tensor space
+        # Scale them to the visualization window size
 
         for obj in self.objects:
-            cx = obj.cx * scale_x
-            cy = obj.cy * scale_y
-            bw = obj.width * scale_x
-            bh = obj.height * scale_y
 
-            x1 = int(cx - bw / 2)
-            y1 = int(cy - bh / 2)
-            x2 = int(cx + bw / 2)
-            y2 = int(cy + bh / 2)
+            x1 = int(obj.cx - obj.width / 2)
+            y1 = int(obj.cy - obj.height / 2)
+            x2 = int(obj.cx + obj.width / 2)
+            y2 = int(obj.cy + obj.height / 2)
 
-            color = (0, 255, 0) if obj.valid else (0, 0, 255)
-            cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+            # Green = stable, Yellow = valid (depth ok, not stable), Red = no depth
+            if obj.is_stable:
+                color = (0, 255, 0)
+            elif obj.valid:
+                color = (0, 255, 255)
+            else:
+                color = (0, 0, 255)
 
-            label = f"{obj.class_name} {obj.distance:.2f}m"
-            
+            # cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+
+            dist_str = f'{obj.distance:.2f}m' if obj.distance >= 0 else 'no depth'
+            label = f'{obj.label} {dist_str}'
+
             cv2.putText(
-                 img,
-                 label,
-                 (x1, y2+15),
-                 cv2.FONT_HERSHEY_SIMPLEX,
-                 0.5,
-                 color,
-                 2
+                img,
+                label,
+                (x1, y2+15),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.5,
+                color,
+                2
             )
 
         cv2.imshow('Depth Perception Viz', img)
