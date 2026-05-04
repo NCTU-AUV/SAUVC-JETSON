@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<root BTCPP_format="3">
+  <BehaviorTree ID="PassGateProcedure">
+    <Sequence>
+      <SearchTarget label="gate"/>
+      <ApproachTarget label="gate" distance="3.5"/>
+      <FinalAlignTarget label="gate"/>
+      <BlindForward duration="16.0" heading_lock="true"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="QualificationMission">
+    <Sequence>
+      <!-- WaitForStart is simulated by the decision node triggering BT tick based on topic -->
+      <SetCamera mode="realsense"/>
+      <SetDepth depth="0.7"/>
+      
+      <ReactiveFallback>
+        <AvoidObstacle/>
+        <SubTree ID="PassGateProcedure"/>
+      </ReactiveFallback>
+
+      <!-- Turn π radians = 3.14159 -->
+      <TurnToYaw angle="3.14159"/>
+
+      <BlindForward duration="12.0" heading_lock="true"/>
+      <SetDepth depth="0.0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="FinalMission">
+    <Sequence>
+      <SetCamera mode="realsense"/>
+      <SetDepth depth="1.0"/>
+      
+      <ReactiveFallback>
+        <AvoidObstacle sticky_time="1.0"/>
+        <Sequence>
+          <SubTree ID="PassGateProcedure"/>
+        </Sequence>
+      </ReactiveFallback>
+    </Sequence>
+  </BehaviorTree>
+
+</root>
