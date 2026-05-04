@@ -11,6 +11,7 @@
   <buildtool_depend>ament_cmake</buildtool_depend>
 
   <!-- runtime dependencies (launch-time) -->
+  <exec_depend>orca_interface</exec_depend>
   <exec_depend>camera_selector</exec_depend>
   <exec_depend>depth_perception</exec_depend>
   <exec_depend>isaac_ros_yolov8</exec_depend>
