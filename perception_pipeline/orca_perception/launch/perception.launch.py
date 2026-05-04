@@ -3,9 +3,12 @@
 #
 # Unified perception pipeline for SAUVC AUV:
 #   camera_selector  ──►  YOLOv8 (TensorRT)  ──►  depth_perception
+#                                                         │
+#                                              /orca/perception_array
 #
 # All NITROS-capable nodes run inside a single composable container
 # for zero-copy intra-process communication.
+# depth_perception runs as a standalone Python process.
 #
 # Usage:
 #   ros2 launch orca_perception perception.launch.py
@@ -38,13 +41,10 @@ def generate_launch_description():
             description='Absolute path to the pipeline parameter YAML file'),
         DeclareLaunchArgument(
             'use_viz',
-            default_value='',        # empty → fall back to YAML value
+            default_value='',           # empty → fall back to YAML value
             description='Override use_viz from YAML (true/false). Leave empty to use YAML value.'),
     ]
 
-    # OpaqueFunction defers node construction until launch time so we can
-    # read the config file path (which is a LaunchConfiguration, resolved
-    # at launch time) and parse the YAML before building the node list.
     def create_nodes(context, *args, **kwargs):
         config_file = LaunchConfiguration('config_file').perform(context)
         use_viz_override = LaunchConfiguration('use_viz').perform(context)
@@ -52,10 +52,6 @@ def generate_launch_description():
         # ── Load YAML ─────────────────────────────────────────────
         with open(config_file, 'r') as f:
             cfg = yaml.safe_load(f)
-
-        # ── Helper: extract ros__parameters dict for a node key ───
-        def ros_params(node_key):
-            return cfg.get(node_key, {}).get('ros__parameters', {})
 
         # ── Resolve use_viz: CLI arg wins; fall back to YAML ──────
         if use_viz_override in ('true', 'True', '1'):
@@ -66,6 +62,12 @@ def generate_launch_description():
             use_viz = bool(cfg.get('launch', {}).get('use_viz', False))
 
         use_viz_str = 'true' if use_viz else 'false'
+
+        # ── Top-level class_names (shared by depth_perception + visualiser) ──
+        class_names = cfg.get('class_names', [
+            'blue_drum', 'blue_flare', 'gate', 'metal_ball',
+            'orange_flare', 'red_fare', 'yellow_flare',
+        ])
 
         # ── DNN encoder dimensions from YAML ──────────────────────
         enc_cfg = cfg.get('dnn_image_encoder', {})
@@ -84,6 +86,13 @@ def generate_launch_description():
             'tensor_output_topic': '/tensor_pub',
         }
 
+        # ── Helper: extract ros__parameters dict for a named node ──
+        # We extract each node's ros__parameters sub-dict and pass it inline
+        # to avoid rcl_yaml_param_parser tripping over non-standard top-level keys.
+        def node_params(name):
+            section = cfg.get(f'/{name}', cfg.get(name, {}))
+            return section.get('ros__parameters', {})
+
         # ── Composable nodes ──────────────────────────────────────
 
         # 1) Camera selector — zero-copy forwarding in the container
@@ -91,7 +100,7 @@ def generate_launch_description():
             name='camera_selector_node',
             package='camera_selector',
             plugin='camera_selector::CameraSelectorNode',
-            parameters=[ros_params('/camera_selector_node')],
+            parameters=[node_params('camera_selector_node')],
         )
 
         # 2) TensorRT inference node
@@ -99,7 +108,7 @@ def generate_launch_description():
             name='tensor_rt',
             package='isaac_ros_tensor_rt',
             plugin='nvidia::isaac_ros::dnn_inference::TensorRTNode',
-            parameters=[ros_params('/tensor_rt')],
+            parameters=[node_params('tensor_rt')],
         )
 
         # 3) YOLOv8 decoder node
@@ -107,7 +116,7 @@ def generate_launch_description():
             name='yolov8_decoder_node',
             package='isaac_ros_yolov8',
             plugin='nvidia::isaac_ros::yolov8::YoloV8DecoderNode',
-            parameters=[ros_params('/yolov8_decoder_node')],
+            parameters=[node_params('yolov8_decoder_node')],
         )
 
         # ── Composable container (shared process) ─────────────────
@@ -134,32 +143,42 @@ def generate_launch_description():
             launch_arguments=enc_args.items(),
         )
 
-        # ── Depth perception (Python — runs as standalone process) ─
+        # ── Depth perception (Python — standalone process) ─────────
+        # Merge YAML ros__parameters with the top-level class_names so the node
+        # gets the same label list as the visualiser without duplication in YAML.
+        dp_params = node_params('depth_perception')
+        dp_params['class_names'] = class_names
+
         depth_perception_node = Node(
             package='depth_perception',
             executable='depth_perception_node.py',
             name='depth_perception',
             output='screen',
-            parameters=[ros_params('/depth_perception')],
+            parameters=[dp_params],
         )
 
-        # ── Depth perception visualizer (optional) ─────────────────
+        # ── Depth perception visualiser (optional) ─────────────────
+        dp_viz_params = node_params('depth_perception_viz')
         depth_perception_viz_node = Node(
             package='depth_perception',
             executable='depth_perception_viz_node.py',
             name='depth_perception_viz',
             output='screen',
-            parameters=[ros_params('/depth_perception_viz')],
+            parameters=[dp_viz_params],
             condition=IfCondition(use_viz_str),
         )
 
-        # ── YOLOv8 visualizer (optional) ──────────────────────────
+        # ── YOLOv8 visualiser (optional) ──────────────────────────
+        # Inject class_names from top-level so both nodes share the same list
+        viz_params = node_params('yolov8_visualizer')
+        viz_params['names'] = class_names
+
         yolov8_visualizer_node = Node(
             package='isaac_ros_yolov8',
             executable='isaac_ros_yolov8_visualizer.py',
             name='yolov8_visualizer',
             output='screen',
-            parameters=[ros_params('/yolov8_visualizer')],
+            parameters=[viz_params],
             condition=IfCondition(use_viz_str),
         )
 
