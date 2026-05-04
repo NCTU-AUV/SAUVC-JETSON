@@ -1,0 +1,139 @@
+# perception_params.yaml
+# Central configuration for the SAUVC AUV perception pipeline.
+# Pass a custom path via:
+#   ros2 launch orca_perception perception.launch.py config_file:=/path/to/params.yaml
+
+# ── Launch-level flags (read by the launch file, not passed as ROS params) ────
+launch:
+  use_viz: true
+
+# ── Class label mapping (index = class id) ────────────────────────────────────
+# Used by BOTH depth_perception and yolov8_visualizer.
+# sim model (7 classes):
+class_names:
+  - blue_drum
+  - blue_flare
+  - gate
+  - metal_ball
+  - orange_flare
+  - red_fare
+  - yellow_flare
+# Real model (10 classes) — uncomment and replace the list above:
+# class_names:
+#   - blue_drum
+#   - blue_flare
+#   - gate
+#   - gate_side
+#   - metal_ball
+#   - orange_flare
+#   - qualification_gate
+#   - red_drum
+#   - red_fare
+#   - yellow_flare
+
+# ── DNN image encoder (values forwarded as launch_arguments, not ros__parameters) ──
+dnn_image_encoder:
+  input_image_width: 640
+  input_image_height: 640
+  network_image_width: 640
+  network_image_height: 640
+  image_mean: "[0.0, 0.0, 0.0]"
+  image_stddev: "[1.0, 1.0, 1.0]"
+
+# ── TensorRT inference node ────────────────────────────────────────────────────
+/tensor_rt:
+  ros__parameters:
+    model_file_path: /workspaces/isaac_ros-dev/src/sim_best.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/sim_best.plan
+    force_engine_update: false
+    output_binding_names: ["output0"]
+    output_tensor_names: ["output_tensor"]
+    input_tensor_names: ["input_tensor"]
+    input_binding_names: ["images"]
+    verbose: false
+
+# ── YOLOv8 decoder node ────────────────────────────────────────────────────────
+/yolov8_decoder_node:
+  ros__parameters:
+    confidence_threshold: 0.25
+    nms_threshold: 0.45
+    num_classes: 7
+
+# ── Camera selector node ───────────────────────────────────────────────────────
+/camera_selector_node:
+  ros__parameters:
+    realsense_image_topic: /orca_auv/color/image_raw
+    realsense_info_topic:  /orca_auv/color/camera_info
+    usb_image_topic:       /orca_auv/camera/bottom/image_raw
+    usb_info_topic:        /orca_auv/camera/bottom/camera_info
+    mode_topic:            /orca/camera_mode
+    selected_image_topic:  /orca/selected/image_raw
+    selected_info_topic:   /orca/selected/camera_info
+    default_mode:          realsense
+
+# ── Depth perception node ──────────────────────────────────────────────────────
+/depth_perception:
+  ros__parameters:
+    # --- Input topics ---
+    depth_image_topic:        /orca_auv/depth/image_raw
+    camera_info_topic:        /orca_auv/depth/camera_info   # intrinsics read at runtime
+    detections_topic:         /detections_output
+    mode_topic:               /orca/camera_mode
+
+    # --- Output topic (consumed by decision node) ---
+    perception_output_topic:  /orca/perception_array
+
+    # --- YOLO tensor dimensions ---
+    yolo_input_width:  640
+    yolo_input_height: 640
+
+    # --- Depth estimation thresholds ---
+    depth_min_range:        0.2     # metres — discard depth readings below this
+    gate_symmetry_thresh:   0.4     # max left/right depth asymmetry for gate (m)
+    gate_width_min_ratio:   0.6     # gate column span must be > this fraction of bbox width
+    gate_col_step:          3       # pixel step between sampled columns
+    gate_col_min_samples:   5       # minimum valid columns to accept gate estimate
+    gate_col_min_points:    30      # minimum depth pixels in a column to use it
+    obj_center_crop_ratio:  0.5     # fraction of bbox used for centre-crop sampling
+    obj_percentile:         10      # depth percentile used for foreground estimation
+    obj_min_roi_points:     5       # minimum valid depth pixels to trust estimate
+
+    # --- Multi-frame stability tracker ---
+    stability_window:         10    # rolling window length (frames)
+    stability_min_hits:       7     # min detections in window to be considered stable
+    stability_pos_std_thresh: 0.15  # max position std-dev (m) over window
+    stability_conf_thresh:    0.35  # min confidence to count toward stability
+
+# ── Depth perception viz node (only active when use_viz: true) ────────────────
+/depth_perception_viz:
+  ros__parameters:
+    viz_image_topic:      /yolov8_processed_image
+    viz_perception_topic: /orca/perception_array
+    viz_native_width:     1280
+    viz_native_height:    720
+
+# ── YOLOv8 visualizer (only active when use_viz: true) ────────────────────────
+/yolov8_visualizer:
+  ros__parameters:
+    # sim model (7 classes):
+    # class names are injected by the launch file from the top-level class_names list
+    names:
+      - blue_drum
+      - blue_flare
+      - gate
+      - metal_ball
+      - orange_flare
+      - red_fare
+      - yellow_flare
+    # real model (10 classes) — uncomment and replace the list above:
+    # names:
+    #   - blue_drum
+    #   - blue_flare
+    #   - gate
+    #   - gate_side
+    #   - metal_ball
+    #   - orange_flare
+    #   - qulification_gate
+    #   - red_drum
+    #   - red_fare
+    #   - yellow_flare
