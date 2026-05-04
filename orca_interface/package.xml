@@ -1,12 +1,14 @@
 <?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>decision_interface</name>
-  <version>0.0.1</version>
+  <name>orca_interface</name>
+  <version>0.1.0</version>
   <description>
-    Common interfaces (msg/srv/action) for decision modules.
+    Shared ROS 2 message interfaces for the SAUVC AUV Orca system.
+    Contains PerceptionObject, PerceptionArray, and FSMStatus messages.
   </description>
 
-  <maintainer email="you@example.com">orca_auv</maintainer>
+  <maintainer email="ycchiu226@gmail.com">ycchiu226</maintainer>
   <license>Apache-2.0</license>
 
   <!-- Build system -->
@@ -16,9 +18,9 @@
   <build_depend>rosidl_default_generators</build_depend>
   <exec_depend>rosidl_default_runtime</exec_depend>
 
-  <!-- Message dependencies -->
+  <!-- Message field dependencies -->
   <depend>std_msgs</depend>
-
+  <depend>geometry_msgs</depend>
 
   <export>
     <build_type>ament_cmake</build_type>
