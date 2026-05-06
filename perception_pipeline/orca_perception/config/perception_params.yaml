@@ -9,16 +9,16 @@ launch:
 
 # ── Class label mapping (index = class id) ────────────────────────────────────
 # Used by BOTH depth_perception and yolov8_visualizer.
-# sim model (7 classes):
+# SAUVC YOLOv8 model (7 classes):
 class_names:
   - blue_drum
   - blue_flare
   - gate
-  - metal_ball
   - orange_flare
-  - red_fare
+  - red_drum
+  - red_flare
   - yellow_flare
-# Real model (10 classes) — uncomment and replace the list above:
+# Legacy ORCA model (10 classes) — uncomment and replace the list above:
 # class_names:
 #   - blue_drum
 #   - blue_flare
@@ -28,7 +28,7 @@ class_names:
 #   - orange_flare
 #   - qualification_gate
 #   - red_drum
-#   - red_fare
+#   - red_flare
 #   - yellow_flare
 
 # ── DNN image encoder (values forwarded as launch_arguments, not ros__parameters) ──
@@ -115,15 +115,15 @@ dnn_image_encoder:
 # ── YOLOv8 visualizer (only active when use_viz: true) ────────────────────────
 /yolov8_visualizer:
   ros__parameters:
-    # sim model (7 classes):
+    # SAUVC YOLOv8 model (7 classes):
     # class names are injected by the launch file from the top-level class_names list
     names:
       - blue_drum
       - blue_flare
       - gate
-      - metal_ball
       - orange_flare
-      - red_fare
+      - red_drum
+      - red_flare
       - yellow_flare
     # real model (10 classes) — uncomment and replace the list above:
     # names:
@@ -133,7 +133,7 @@ dnn_image_encoder:
     #   - gate_side
     #   - metal_ball
     #   - orange_flare
-    #   - qulification_gate
+    #   - qualification_gate
     #   - red_drum
-    #   - red_fare
+    #   - red_flare
     #   - yellow_flare

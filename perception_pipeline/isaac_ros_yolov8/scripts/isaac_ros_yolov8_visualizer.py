@@ -42,8 +42,8 @@ class Yolov8Visualizer(Node):
         # ── Declare parameters ─────────────────────────────────────
         # `names` is an ordered list: index 0 → class 0 label, etc.
         default_names = [
-            'blue_drum', 'blue_flare', 'gate', 'metal_ball',
-            'orange_flare', 'red_fare', 'yellow_flare',
+            'blue_drum', 'blue_flare', 'gate', 'orange_flare',
+            'red_drum', 'red_flare', 'yellow_flare',
         ]
         self.declare_parameter('names', default_names)
 

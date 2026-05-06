@@ -53,9 +53,9 @@ This repository should contain all the codes that need to be run on the Jetson O
    		0: 'blue_drum',
    		1: 'blue_flare',
    		2: 'gate',
-   		3: 'metal_ball',
-   		4: 'orange_flare',
-   		5: 'red_fare',
+   		3: 'orange_flare',
+   		4: 'red_drum',
+   		5: 'red_flare',
    		6: 'yellow_flare',
    
    }

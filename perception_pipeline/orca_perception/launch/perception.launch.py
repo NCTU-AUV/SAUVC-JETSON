@@ -65,8 +65,8 @@ def generate_launch_description():
 
         # ── Top-level class_names (shared by depth_perception + visualiser) ──
         class_names = cfg.get('class_names', [
-            'blue_drum', 'blue_flare', 'gate', 'metal_ball',
-            'orange_flare', 'red_fare', 'yellow_flare',
+            'blue_drum', 'blue_flare', 'gate', 'orange_flare',
+            'red_drum', 'red_flare', 'yellow_flare',
         ])
 
         # ── DNN encoder dimensions from YAML ──────────────────────

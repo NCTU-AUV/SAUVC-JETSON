@@ -126,8 +126,8 @@ class DepthPerceptionNode(Node):
 
         # class-id → label mapping (index = class id)
         default_names = [
-            'blue_drum', 'blue_flare', 'gate', 'metal_ball',
-            'orange_flare', 'red_fare', 'yellow_flare',
+            'blue_drum', 'blue_flare', 'gate', 'orange_flare',
+            'red_drum', 'red_flare', 'yellow_flare',
         ]
         self.declare_parameter('class_names', default_names)
 
