@@ -45,7 +45,7 @@ dnn_image_encoder:
   ros__parameters:
     model_file_path: /workspaces/isaac_ros-dev/src/best.onnx
     engine_file_path: /workspaces/isaac_ros-dev/src/best.plan
-    force_engine_update: false
+    force_engine_update: true
     output_binding_names: ["output0"]
     output_tensor_names: ["output_tensor"]
     input_tensor_names: ["input_tensor"]
