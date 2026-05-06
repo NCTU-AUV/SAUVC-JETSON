@@ -1,140 +1,65 @@
 # depth_perception
 
-Depth-based perception package for SAUVC AUV missions.  
-This package fuses 2D object detections with depth images to produce
-geometry-aware perception results suitable for decision-making and control.
+Unified perception funnel for the SAUVC AUV — converts raw YOLOv8 detections into enriched, stability-tracked `PerceptionObject` messages.
 
----
+## Overview
 
-## 1. Overview
+This package contains two Python nodes:
 
-`depth_perception` is a ROS2 package built with **ament_cmake** and
-implemented using **Python nodes**.  
+| Node | Script | Role |
+|------|--------|------|
+| `depth_perception` | `depth_perception_node.py` | Main perception funnel: subscribes to depth image + detections, performs 3-D pose estimation (RealSense mode) or 2-D passthrough (USB mode), runs multi-frame stability tracking, and publishes `PerceptionArray`. |
+| `depth_perception_viz` | `depth_perception_viz_node.py` | Optional visualiser: overlays distance + stability info on the YOLO-annotated image. |
 
-Key design principles:
+## Dual-Mode Operation
 
-- Single source of truth for depth estimation
-- Robust gate-aware depth logic
-- Clear separation between perception, visualization, and decision logic
-- ROS2-native custom message interfaces
+| Mode | Input | Output |
+|------|-------|--------|
+| **RealSense** | Depth image + detections + camera intrinsics | `PerceptionObject` with 3-D pose (`X, Y, Z`), distance, `valid=True/False` |
+| **USB** | Detections only | `PerceptionObject` with `distance=-1.0`, `valid=False` |
 
----
+In both modes the **multi-frame stability tracker** runs per-label and sets `is_stable=True` when:
+- Object detected in ≥ `stability_min_hits` of the last `stability_window` frames
+- Position standard deviation < `stability_pos_std_thresh`
+- Confidence ≥ `stability_conf_thresh`
 
-## 2. Package Architecture
+## Depth Estimation Strategies
 
-```
-┌──────────────────────────┐
-│     YOLOv8 Detection     │
-│    (isaac_ros_yolov8)    │
-└───────────┬──────────────┘
-            │
-            │  /detections_output
-            │  (vision_msgs/Detection2DArray)
-            ▼
-┌──────────────────────────────────────┐
-│       depth_perception package       │
-│                                      │
-│  ┌────────────────────────────────┐  │
-│  │  depth_estimator_node (Python) │  │
-│  │                                │  │
-│  │  Inputs:                       │  │
-│  │   - /detections_output         │◄─┼── YOLO bbox
-│  │   - /realsense/depth_image     │◄─┼── Depth image
-│  │                                │  │
-│  │  Internal logic:               │  │
-│  │   - Gate-specific:             │  │
-│  │    Scan depth columns in bbox  │  │
-│  │    Setect left/right candidates│  │
-│  │    Enforce width consistency   │  │
-│  │    Enforce depth symmetry      │  │
-│  │   - Non-gate objects:          │  │
-│  │    ROI-based depth percentile  │  │
-│  │                                │  │
-│  │  Output:                       │  │
-│  │   - /perception_array          │──┼──►
-│  │     (PerceptionArray.msg)      │  │
-│  └────────────────────────────────┘  │
-│                                      │
-│  ┌────────────────────────────────┐  │
-│  │ depth_estimator_viz_node       │  │
-│  │        (Python, optional)      │  │
-│  │                                │  │
-│  │  Inputs:                       │  │
-│  │   - /perception_array          │◄─┼── Depth results
-│  │   - /yolov8_processed_image    │◄─┼── RGB image
-│  │                                │  │
-│  │  Function:                     │  │
-│  │   - Draw bbox                  │  │
-│  │   - Annotate depth & validity  │  │
-│  │   - No depth computation       │  │
-│  │                                │  │
-│  │  Output:                       │  │
-│  │   - OpenCV window (debug only) │  │
-│  │                                │  │
-│  │  > disabled during competition │  │
-│  └────────────────────────────────┘  │
-│                                      │
-└──────────────────────────────────────┘
-            │
-            │  /perception_array
-            ▼
-┌──────────────────────────┐
-│    Decision / FSM Node   │
-└──────────────────────────┘
-```
+- **Gate** (class index 2): Samples columns across the bounding box, checks left-right depth symmetry.
+- **General objects**: Centre-crop percentile depth with full-bbox fallback.
 
----
+## Subscribed Topics
 
-## 3. Custom Message Definitions
+| Topic (default) | Type |
+|-----------------|------|
+| `/orca/aligned_depth_to_color/image_raw` | `sensor_msgs/Image` |
+| `/orca/color/camera_info` | `sensor_msgs/CameraInfo` |
+| `/detections_output` | `vision_msgs/Detection2DArray` |
+| `/orca/camera_mode` | `std_msgs/String` |
 
-### 3.1 PerceptionObject.msg
+## Published Topics
 
-```text
-string class_name
+| Topic (default) | Type |
+|-----------------|------|
+| `/orca/perception_array` | `orca_interface/PerceptionArray` |
 
-float32 cx
-float32 cy
-float32 width
-float32 height
+## Key Parameters
 
-float32 distance
-bool valid
-````
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `depth_min_range` | 0.3 | Discard depth below this (m) |
+| `gate_symmetry_thresh` | 0.4 | Max L/R depth asymmetry for gate (m) |
+| `obj_center_crop_ratio` | 0.5 | Fraction of bbox for centre-crop sampling |
+| `obj_percentile` | 10 | Depth percentile for foreground estimation |
+| `stability_window` | 10 | Rolling window length (frames) |
+| `stability_min_hits` | 7 | Min detections in window |
+| `stability_pos_std_thresh` | 0.15 | Max position std-dev (m) |
+| `stability_conf_thresh` | 0.35 | Min confidence threshold |
 
----
+All parameters are configurable via the central YAML config (see `orca_perception`).
 
-### 3.2 PerceptionArray.msg
+## Dependencies
 
-```text
-std_msgs/Header header
-PerceptionObject[] objects
-```
-
----
-
-## 4. Build & Run
-
-### Build
-
-```bash
-colcon build --packages-select depth_perception --symlink-install
-source install/setup.bash
-```
-
-### Verify interfaces
-
-```bash
-ros2 interface show depth_perception/msg/PerceptionArray
-```
-
-### Launch
-
-```bash
-ros2 launch depth_perception depth_estimation.launch.py use_viz:=true
-```
-
-Disable visualization for competition runs:
-
-```bash
-ros2 launch depth_perception depth_estimation.launch.py use_viz:=false
-```
+- `rclpy`, `cv_bridge`, `numpy`, `opencv`
+- `sensor_msgs`, `std_msgs`, `vision_msgs`, `geometry_msgs`
+- `orca_interface`

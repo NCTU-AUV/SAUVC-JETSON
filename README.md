@@ -1,93 +1,157 @@
 # SAUVC-JETSON
-This repository should contain all the codes that need to be run on the Jetson Orin NX of Orca AUV.
+
+ROS 2 workspace for the **Orca AUV**, running on Jetson Orin NX with Isaac ROS 3.2.
+
+This repository contains the full autonomy stack: from camera input through object detection and depth estimation, to BehaviorTree-based mission execution.
+
+## System Architecture
+
+```
+                         ┌──────────────────────────────────────────────────────────┐
+                         │              perception_container (composable)           │
+                         │                                                          │
+  RealSense / USB  ──►   │  camera_selector ──► DNN encoder ──► TensorRT ──► YOLOv8 │
+                         └──────────────────────────────────────┬───────────────────┘
+                                                                │  /detections_output
+                                                                ▼
+                                                       depth_perception  (Python)
+                                                                │
+                                                                ▼
+                                                     /orca/perception_array
+                                                                │
+                 /orca_auv/sensors/imu  ──►  ┌──────────────────┘
+                                             ▼
+                                       decision_node  (BehaviorTree.CPP)
+                                             │
+                            ┌────────────────┼────────────────────┐
+                            ▼                ▼                    ▼
+              wrench_sources/decision   targets/depth_m    decision/status
+```
+
+## Packages
+
+Refer to README in each package folder for more details.
+
+| Package | Location | Description |
+|---------|----------|-------------|
+| [`orca_interface`](orca_interface/) | `src/orca_interface` | Shared message definitions (`PerceptionObject`, `PerceptionArray`, `DecisionStatus`) |
+| [`camera_selector`](perception_pipeline/camera_selector/) | `src/perception_pipeline/camera_selector` | Runtime RealSense ↔ USB camera switching (composable node) |
+| [`isaac_ros_yolov8`](perception_pipeline/isaac_ros_yolov8/) | `src/perception_pipeline/isaac_ros_yolov8` | YOLOv8 TensorRT decoder + visualiser |
+| [`depth_perception`](perception_pipeline/depth_perception/) | `src/perception_pipeline/depth_perception` | Depth estimation + multi-frame stability tracking |
+| [`orca_perception`](perception_pipeline/orca_perception/) | `src/perception_pipeline/orca_perception` | Unified perception launcher & YAML config |
+| [`orca_decision`](orca_decision/) | `src/orca_decision` | BehaviorTree.CPP mission decision system |
+| [`sauvc_sim(deprecated)`](sauvc_sim/) | `src/sauvc_sim` | Gazebo simulation environment |
 
 ## Quick Start
 
-1. Follow steps in [getting_started](https://nvidia-isaac-ros.github.io/v/release-3.2/getting_started/index.html) to setup your workspace for isaac ros 3.2</br>
-   Go through "Compute Setup" and "Developer Environment Setup", mind your platform (x86/jetson)
-2. ```
-   cd $ISAAC_ROS_WS/src
-   git clone --recurse-submodules git@github.com:NCTU-AUV/SAUVC-JETSON.git
+### 1. Prerequisites
 
-   # move everything in src/SAUVC-JETSON/ to src/
-   mv SAUVC-JETSON/* .
-   mv SAUVC-JETSON/.g* .
-   rm -rf SAUVC-JETSON
-   ```   
-3. To include our custom image layers
-   ```
-   touch ~/.isaac_ros_common-config
-   echo "CONFIG_IMAGE_KEY=ros2_humble.realsense.orca25" >> ~/.isaac_ros_common-config
-   ```
-4. Set alias for convenience. Afterward, to access a new shell into the same container, just open a new terminal and run `isa`
-   ```
-   echo "alias isa='cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common && ./scripts/run_dev.sh' >> ~/.bashrc
-   source ~/.bashrc
-   isa
-   ```
-   This build the required image and enter bash, take a long time (40 min on my laptop)
-5. ```
-   cd $ISAAC_ROS_WS
-   colcon build --symlink-install
-   source install/setup.bash
-   ```
+Follow the [Isaac ROS Getting Started](https://nvidia-isaac-ros.github.io/v/release-3.2/getting_started/index.html) guide to set up your workspace for Isaac ROS 3.2.
+Complete **"Compute Setup"** and **"Developer Environment Setup"** (mind your platform: x86 / Jetson).
 
-## Demo
-- Run the following nodes each in separated terminals
-- Constantly check `ros2 node/topic list/info/echo` to better understand the role of each nodes and what happens on starting/aborting them.
-- View the structure of different packages, go through the source codes to get clearer insight.
+### 2. Clone the Repository
 
-### Gazebo Simulation
-- Launch the environment</br>
-`ros2 launch sauvc_sim sauvc25_launch.py`
-  
-- Keyboard control and video capturing</br>
-`ros2 run sauvc_sim teleop25.py --ros-args -r /cmd_vel:=/fsm/cmd_vel`
+```bash
+cd $ISAAC_ROS_WS/src
+git clone --recurse-submodules git@github.com:NCTU-AUV/SAUVC-JETSON.git
 
-### Yolov8 Object Detection
-1. Modify line 58 in `isaac_ros_yolov8/src/yolov8_decoder_node.cpp` where # of classes is hard coded, see [issue 32](https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_object_detection/issues/32#issuecomment-1827859460).
-2. If you the correct class name displayed in visualization, change the `name` dict in `isaac_ros_yolov8/scripts/isaac_ros_yolov8_visualizer.py`. e.g.
-   ```
-   names = {
-   
-   		0: 'blue_drum',
-   		1: 'blue_flare',
-   		2: 'gate',
-   		3: 'orange_flare',
-   		4: 'red_drum',
-   		5: 'red_flare',
-   		6: 'yellow_flare',
-   
-   }
-   ```
-4. Lauch the detection node for gazebo with visualization. For more details, refer to the [hackmd](https://hackmd.io/@NCTU-auv/H1dTKRoe6)
-   ```
-     cd /workspaces/isaac_ros-dev && \
-      ros2 launch isaac_ros_yolov8 isaac_ros_yolov8_visualize_gazebo.launch.py \
-          model_file_path:=./src/sim_best.onnx \
-          engine_file_path:=./src/sim_best.plan \
-          input_binding_names:=['images'] \
-          output_binding_names:=['output0'] \
-          network_image_width:=640 \
-          network_image_height:=640 \
-          force_engine_update:=False \
-          image_mean:=[0.0,0.0,0.0] \
-          image_stddev:=[1.0,1.0,1.0] \
-          input_image_width:=640 \
-          input_image_height:=640 \
-          confidence_threshold:=0.25 \
-          nms_threshold:=0.45
-   ```
+# Flatten into src/
+mv SAUVC-JETSON/* .
+mv SAUVC-JETSON/.g* .
+rm -rf SAUVC-JETSON
+```
 
-### Depth Perception
-- Enable visualization for debug (default)</br>
-`ros2 launch depth_perception depth_perception.launch.py use_viz:=true`
+### 3. Configure Docker Image Layers
 
-- Disable visualization for competition runs</br>
-`ros2 launch depth_perception depth_perception.launch.py use_viz:=false`
+```bash
+touch ~/.isaac_ros_common-config
+echo "CONFIG_IMAGE_KEY=ros2_humble.realsense.orca25" >> ~/.isaac_ros_common-config
+```
 
-### fsm_decision
-1. Run the decision node</br>
-   `ros2 run fsm_decision fsm_node`
-2. Send the start signal</br>
-   `ros2 topic pub --once /fsm/start_mission std_msgs/Bool "{data: true}"`
+### 4. Set Up Alias & Enter Container
+
+```bash
+echo "alias isa='cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common && ./scripts/run_dev.sh'" >> ~/.bashrc
+source ~/.bashrc
+isa    # builds the image on first run (~40 min), then enters bash
+```
+
+To open additional terminals inside the **same container**, simply run `isa` from any new terminal.
+
+### 5. Build the Workspace
+
+```bash
+cd /workspaces/isaac_ros-dev
+colcon build --symlink-install
+source install/setup.bash
+```
+
+---
+
+## Running the Full Pipeline
+
+After entering the container with `isa`, open **three terminals** (each running `isa` to attach to the same container).
+
+### Terminal 1 — Perception Pipeline
+
+```bash
+ros2 launch orca_perception perception.launch.py \
+  config_file:=src/perception_pipeline/orca_perception/config/simulation_params.yaml
+```
+
+This launches the full perception stack: camera selector → DNN encoder → TensorRT → YOLOv8 decoder → depth perception.
+
+### Terminal 2 — Decision Node
+
+```bash
+ros2 launch orca_decision decision.launch.py
+```
+
+This starts the BehaviorTree-based decision node, subscribing to perception output and IMU.
+
+### Terminal 3 — Start Mission & Monitor
+
+```bash
+# Trigger mission start
+ros2 topic pub --once /orca/decision/start_mission std_msgs/msg/Bool 'data: true'
+```
+
+Monitor the system with:
+
+```bash
+# Decision status (mission phase, current BT action, target lock, etc.)
+ros2 topic echo /orca/decision/status
+
+# Wrench output sent to thruster allocation
+ros2 topic echo /orca_auv/control/wrench_sources/decision
+```
+
+---
+
+## Gazebo Simulation (deprecated, go with SAUVC-Simulation)
+
+```bash
+# Terminal A — Launch Gazebo environment
+ros2 launch sauvc_sim sauvc25_launch.py
+
+# Terminal B — Keyboard teleop (optional)
+ros2 run sauvc_sim teleop25.py --ros-args -r /cmd_vel:=/fsm/cmd_vel
+```
+
+Then run the perception + decision pipeline as described above using `simulation_params.yaml`.
+
+## Useful Debug Commands
+
+```bash
+# List all active nodes / topics
+ros2 node list
+ros2 topic list
+
+# Inspect a specific topic
+ros2 topic info /orca/perception_array
+ros2 topic echo /orca/perception_array
+
+# Check node parameters
+ros2 param list /decision_node
+ros2 param get /decision_node main_tree_id
+```
