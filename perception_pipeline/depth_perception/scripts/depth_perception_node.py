@@ -315,8 +315,8 @@ class DepthPerceptionNode(Node):
                 y1 = max(0, cy_d - bh_d // 2)
                 y2 = min(h - 1, cy_d + bh_d // 2)
 
-                # Gate class (index 2 in default mapping)
-                if class_idx == 2:
+                # Gate labels use gate-specific column sampling regardless of class index.
+                if label == 'gate':
                     x1_ = max(x1-10, 0)
                     x2_ = min(x2+10, w-1)
                     z, valid = self._estimate_gate(x1_, x2_, y1-10, y2, x2_-x1_)

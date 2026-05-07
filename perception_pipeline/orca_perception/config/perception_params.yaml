@@ -7,8 +7,33 @@
 launch:
   use_viz: false
 
+# ── Model profile selection ──────────────────────────────────────────────────
+# Use "qualification" for QualificationMission, "finals" for FinalMission.
+model_profile: qualification
+
+model_profiles:
+  finals:
+    model_file_path: /workspaces/isaac_ros-dev/src/finals.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/finals.plan
+    num_classes: 7
+    class_names:
+      - blue_drum
+      - blue_flare
+      - gate
+      - orange_flare
+      - red_drum
+      - red_flare
+      - yellow_flare
+  qualification:
+    model_file_path: /workspaces/isaac_ros-dev/src/qualification.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/qualification.plan
+    num_classes: 1
+    class_names:
+      - gate
+
 # ── Class label mapping (index = class id) ────────────────────────────────────
-# Used by BOTH depth_perception and yolov8_visualizer.
+# Fallback used by BOTH depth_perception and yolov8_visualizer when no
+# model_profiles entry is selected.
 # SAUVC YOLOv8 model (7 classes):
 class_names:
   - blue_drum
@@ -43,8 +68,8 @@ dnn_image_encoder:
 # ── TensorRT inference node ────────────────────────────────────────────────────
 /tensor_rt:
   ros__parameters:
-    model_file_path: /workspaces/isaac_ros-dev/src/best.onnx
-    engine_file_path: /workspaces/isaac_ros-dev/src/best.plan
+    model_file_path: /workspaces/isaac_ros-dev/src/finals.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/finals.plan
     force_engine_update: true
     output_binding_names: ["output0"]
     output_tensor_names: ["output_tensor"]
