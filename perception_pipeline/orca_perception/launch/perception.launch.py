@@ -51,7 +51,7 @@ def generate_launch_description():
 
         # ── Load YAML ─────────────────────────────────────────────
         with open(config_file, 'r') as f:
-            cfg = yaml.safe_load(f)
+            cfg = yaml.safe_load(f) or {}
 
         # ── Resolve use_viz: CLI arg wins; fall back to YAML ──────
         if use_viz_override in ('true', 'True', '1'):
@@ -63,11 +63,31 @@ def generate_launch_description():
 
         use_viz_str = 'true' if use_viz else 'false'
 
-        # ── Top-level class_names (shared by depth_perception + visualiser) ──
-        class_names = cfg.get('class_names', [
+        default_class_names = [
             'blue_drum', 'blue_flare', 'gate', 'orange_flare',
             'red_drum', 'red_flare', 'yellow_flare',
-        ])
+        ]
+
+        # ── Model profile selection ───────────────────────────────
+        # New configs can select one model profile and have it override the
+        # TensorRT model/engine paths, decoder class count, and shared labels.
+        # Older configs without model_profiles continue to use their node params
+        # and top-level class_names unchanged.
+        profile = {}
+        model_profiles = cfg.get('model_profiles', {})
+        if model_profiles:
+            profile_name = cfg.get('model_profile', 'finals')
+            if profile_name not in model_profiles:
+                valid_profiles = ', '.join(sorted(model_profiles.keys()))
+                raise RuntimeError(
+                    f'Unknown model_profile {profile_name!r}. '
+                    f'Valid profiles: {valid_profiles}')
+            profile = model_profiles[profile_name] or {}
+
+        # ── Class names shared by depth_perception + visualiser ────
+        class_names = profile.get(
+            'class_names',
+            cfg.get('class_names', default_class_names))
 
         # ── DNN encoder dimensions from YAML ──────────────────────
         enc_cfg = cfg.get('dnn_image_encoder', {})
@@ -91,7 +111,18 @@ def generate_launch_description():
         # to avoid rcl_yaml_param_parser tripping over non-standard top-level keys.
         def node_params(name):
             section = cfg.get(f'/{name}', cfg.get(name, {}))
-            return section.get('ros__parameters', {})
+            return dict(section.get('ros__parameters', {}))
+
+        tensor_rt_params = node_params('tensor_rt')
+        yolov8_decoder_params = node_params('yolov8_decoder_node')
+
+        if profile:
+            if 'model_file_path' in profile:
+                tensor_rt_params['model_file_path'] = profile['model_file_path']
+            if 'engine_file_path' in profile:
+                tensor_rt_params['engine_file_path'] = profile['engine_file_path']
+            if 'num_classes' in profile:
+                yolov8_decoder_params['num_classes'] = int(profile['num_classes'])
 
         # ── Composable nodes ──────────────────────────────────────
 
@@ -108,7 +139,7 @@ def generate_launch_description():
             name='tensor_rt',
             package='isaac_ros_tensor_rt',
             plugin='nvidia::isaac_ros::dnn_inference::TensorRTNode',
-            parameters=[node_params('tensor_rt')],
+            parameters=[tensor_rt_params],
         )
 
         # 3) YOLOv8 decoder node
@@ -116,7 +147,7 @@ def generate_launch_description():
             name='yolov8_decoder_node',
             package='isaac_ros_yolov8',
             plugin='nvidia::isaac_ros::yolov8::YoloV8DecoderNode',
-            parameters=[node_params('yolov8_decoder_node')],
+            parameters=[yolov8_decoder_params],
         )
 
         # ── Composable container (shared process) ─────────────────
