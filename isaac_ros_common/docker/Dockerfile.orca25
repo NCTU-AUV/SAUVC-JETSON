@@ -17,5 +17,6 @@ RUN apt-get update && apt-get install -y lsb-release gnupg curl && \
     apt-get install -y ignition-fortress ros-humble-ros-gz && \
     rm -rf /var/lib/apt/lists/*
 
+RUN pip install numpy==1.26.4 --force-reinstall
 COPY scripts/entrypoint_orca25.sh /usr/local/bin/scripts/entrypoint_additions/
 RUN echo "source /usr/local/bin/scripts/entrypoint_additions/entrypoint_orca25.sh" >> /etc/bash.bashrc
