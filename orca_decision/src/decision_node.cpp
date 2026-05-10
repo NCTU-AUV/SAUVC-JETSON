@@ -39,11 +39,50 @@ void DecisionNode::loadParameters() {
   this->declare_parameter("velocity_decay", 0.95);
 
   this->declare_parameter("tree_xml_file", "config/trees.xml");
-  this->declare_parameter("main_tree_id", "QualificationMission");
+  this->declare_parameter("main_tree_id", "FinalMission");
 
   this->declare_parameter("camera_switch_hysteresis", 0.5);
   this->declare_parameter("align_yaw_threshold", 0.1);
   this->declare_parameter("align_distance_threshold", 0.5);
+
+  // MoveAboveTarget parameters
+  this->declare_parameter("move_above_k_surge", 0.003);
+  this->declare_parameter("move_above_k_sway", 0.003);
+  this->declare_parameter("move_above_max_surge", 0.15);
+  this->declare_parameter("move_above_max_sway", 0.15);
+  this->declare_parameter("move_above_reacquire_surge", 0.10);
+  this->declare_parameter("move_above_center_threshold", 20.0);
+  this->declare_parameter("move_above_stable_frames", 10);
+  this->declare_parameter("move_above_timeout_sec", 30.0);
+  this->declare_parameter("move_above_lowpass_alpha", 0.3);
+  this->declare_parameter("check_bottom_clear_sway_speed", 0.2);
+  this->declare_parameter("check_bottom_clear_stable_frames", 3);
+  this->declare_parameter("check_bottom_clear_timeout_sec", 10.0);
+  this->declare_parameter("check_bottom_clear_center_deadband", 20.0);
+
+  // Bottom camera center (pixels)
+  this->declare_parameter("bottom_cam_center_x", 320.0);
+  this->declare_parameter("bottom_cam_center_y", 240.0);
+
+  // BumpFlare parameters
+  this->declare_parameter("bump_flare_surge", 0.25);
+  this->declare_parameter("bump_flare_timeout_sec", 8.0);
+
+  // GoToPose parameters
+  this->declare_parameter("go_to_pose_surge", 0.3);
+  this->declare_parameter("go_to_pose_threshold", 1.0);
+  this->declare_parameter("go_to_pose_timeout_sec", 30.0);
+
+  // SearchBottomTarget parameters
+  this->declare_parameter("search_bottom_yaw_speed", 0.2);
+  this->declare_parameter("search_bottom_timeout_sec", 30.0);
+
+  // SpiralSearch parameters
+  this->declare_parameter("spiral_search_timeout_sec", 45.0);
+
+  // Actuator timing
+  this->declare_parameter("drop_ball_wait_sec", 0.5);
+  this->declare_parameter("actuator_wait_sec", 1.0);
 
   float k_surge = this->get_parameter("k_surge").as_double();
   float k_sway = this->get_parameter("k_sway").as_double();
@@ -70,41 +109,49 @@ void DecisionNode::loadParameters() {
 }
 
 void DecisionNode::setupInterfaces() {
+  auto default_qos = rclcpp::QoS(10);
+  auto command_qos = rclcpp::QoS(1).reliable();
+  auto camera_mode_qos = rclcpp::QoS(1).reliable().transient_local();
+
   imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-      "/orca_auv/sensors/imu", 10,
+      "/orca_auv/sensors/imu", default_qos,
       std::bind(&DecisionNode::imuCallback, this, std::placeholders::_1));
 
   perception_sub_ =
       this->create_subscription<orca_interface::msg::PerceptionArray>(
-          "/orca/perception_array", 10,
+          "/orca/perception_array", default_qos,
           std::bind(&DecisionNode::perceptionCallback, this,
                     std::placeholders::_1));
 
   start_sub_ = this->create_subscription<std_msgs::msg::Bool>(
-      "/orca/decision/start_mission", 10,
+      "/orca/decision/start_mission", default_qos,
       std::bind(&DecisionNode::startMissionCallback, this,
                 std::placeholders::_1));
 
   flare_order_sub_ = this->create_subscription<std_msgs::msg::String>(
-      "/orca/decision/flare_order", 10,
+      "/orca/decision/flare_order", default_qos,
       std::bind(&DecisionNode::flareOrderCallback, this,
                 std::placeholders::_1));
 
   wrench_pub_ = this->create_publisher<geometry_msgs::msg::Wrench>(
-      "/orca/decision/wrench", 10);
+      "/orca/decision/wrench", default_qos);
   desired_depth_pub_ = this->create_publisher<std_msgs::msg::Float64>(
-      "/orca/decision/desired_depth", 10);
+      "/orca/decision/desired_depth", default_qos);
   camera_mode_pub_ = this->create_publisher<std_msgs::msg::String>(
-      "/orca/decision/camera_mode", 10);
+      "/orca/decision/camera_mode", camera_mode_qos);
   arm_pub_ =
-      this->create_publisher<std_msgs::msg::Int32>("/orca/decision/arm", 10);
+      this->create_publisher<std_msgs::msg::Int32>("/orca/decision/arm",
+                                                   command_qos);
   hand_pub_ =
-      this->create_publisher<std_msgs::msg::Int32>("/orca/decision/hand", 10);
+      this->create_publisher<std_msgs::msg::Int32>("/orca/decision/hand",
+                                                   command_qos);
   status_pub_ = this->create_publisher<orca_interface::msg::DecisionStatus>(
-      "/orca/decision/status", 10);
+      "/orca/decision/status", default_qos);
 
   ctx_->camera_mode_pub = camera_mode_pub_;
   ctx_->desired_depth_pub = desired_depth_pub_;
+  ctx_->arm_pub = arm_pub_;
+  ctx_->hand_pub = hand_pub_;
 }
 
 void DecisionNode::registerBehaviorTree() {

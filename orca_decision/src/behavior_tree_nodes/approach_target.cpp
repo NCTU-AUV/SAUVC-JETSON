@@ -28,8 +28,8 @@ BT::NodeStatus ApproachTarget::tick() {
   auto obj = ctx_->world_model->getBestObject(label);
   if (!obj.has_value()) {
     lost_frames_++;
-    ctx_->debug_msg = "Target lost: " + label + " (" + std::to_string(lost_frames_) + "/5)";
-    if (lost_frames_ > 5) {
+    ctx_->debug_msg = "Target lost: " + label + " (" + std::to_string(lost_frames_) + "/8)";
+    if (lost_frames_ > 8) {
       lost_frames_ = 0;
       ctx_->wrench_adapter->setCommand(MotionCommand());
       return BT::NodeStatus::FAILURE;

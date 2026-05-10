@@ -13,7 +13,7 @@ decision_node:
 
     # Mission Parameters
     tree_xml_file: "config/trees.xml"
-    main_tree_id: "QualificationMission" # Change to "FinalMission" for final
+    main_tree_id: "FinalMission"
 
     # Camera switching hysteresis
     camera_switch_hysteresis: 0.5
@@ -21,3 +21,44 @@ decision_node:
     # Thresholds
     align_yaw_threshold: 0.1
     align_distance_threshold: 0.5
+
+    # MoveAboveTarget
+    move_above_k_surge: 0.06
+    move_above_k_sway: 0.02
+    move_above_max_surge: 15.0
+    move_above_max_sway: 5.0
+    move_above_reacquire_surge: 12.0
+    move_above_center_threshold: 20.0
+    move_above_stable_frames: 10
+    move_above_timeout_sec: 150.0
+    move_above_lowpass_alpha: 0.3
+
+    # Bottom camera center (pixels)
+    bottom_cam_center_x: 320.0
+    bottom_cam_center_y: 240.0
+
+    # CheckBottomClear
+    check_bottom_clear_sway_speed: 10.0
+    check_bottom_clear_stable_frames: 15
+    check_bottom_clear_timeout_sec: 20.0
+    check_bottom_clear_center_deadband: 20.0
+
+    # BumpFlare
+    bump_flare_surge: 25.0
+    bump_flare_timeout_sec: 15.0
+
+    # GoToPose
+    go_to_pose_surge: 0.3
+    go_to_pose_threshold: 1.0
+    go_to_pose_timeout_sec: 30.0
+
+    # SearchBottomTarget
+    search_bottom_yaw_speed: 0.2
+    search_bottom_timeout_sec: 30.0
+
+    # SpiralSearch
+    spiral_search_timeout_sec: 45.0
+
+    # Actuator timing
+    drop_ball_wait_sec: 0.5
+    actuator_wait_sec: 1.0

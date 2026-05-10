@@ -2,10 +2,15 @@
 <root BTCPP_format="3">
   <BehaviorTree ID="PassGateProcedure">
     <Sequence>
-      <SearchTarget label="gate"/>
-      <ApproachTarget label="gate" distance="3.5"/>
-      <FinalAlignTarget label="gate"/>
-      <BlindForward duration="16.0" heading_lock="true"/>
+      <RetryUntilSuccessful num_attempts="30">
+        <Sequence>
+          <SearchTarget label="gate"/>
+          <SetDepth depth="1.1"/>
+          <ApproachTarget label="gate" distance="3.5"/>
+          <FinalAlignTarget label="gate"/>
+        </Sequence>
+      </RetryUntilSuccessful>
+      <BlindForward duration="12.0" heading_lock="true"/>
     </Sequence>
   </BehaviorTree>
 
@@ -23,22 +28,128 @@
       <!-- Turn π radians = 3.14159 -->
       <TurnToYaw angle="3.14159"/>
 
-      <BlindForward duration="12.0" heading_lock="true"/>
+      <BlindForward duration="8.0" heading_lock="true"/>
       <SetDepth depth="0.0"/>
     </Sequence>
   </BehaviorTree>
 
   <BehaviorTree ID="FinalMission">
     <Sequence>
-      <SetCamera mode="realsense"/>
-      <SetDepth depth="1.0"/>
       
+      <SetCamera mode="realsense"/>
+      <SetDepth depth="1.1"/>
+
       <ReactiveFallback>
         <AvoidObstacle sticky_time="1.0"/>
-        <Sequence>
-          <SubTree ID="PassGateProcedure"/>
-        </Sequence>
+        <SubTree ID="PassGateProcedure"/>
       </ReactiveFallback>
+
+      <SetDepth depth="0.5"/>
+      <SubTree ID="TargetAcquisition"/>
+
+      <SetCamera mode="realsense"/>
+      <SetDepth depth="1.1"/>
+      <SubTree ID="PassGateProcedure"/>
+      
+      <SubTree ID="CommunicationTask"/>
+
+      <SetDepth depth="0.5"/>
+      <SubTree ID="TargetReacquisition"/>
+
+      <FinishMission/>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="TargetAcquisition">
+    <Sequence>
+      <SetCamera mode="realsense"/>
+      <RetryUntilSuccessful num_attempts="60">
+        <Sequence>
+          <SearchTarget label="blue_drum"/>
+          <ApproachTarget label="blue_drum" distance="4.0"/>
+          <FinalAlignTarget label="blue_drum"/>
+        </Sequence>
+      </RetryUntilSuccessful>
+      <SetCamera mode="usb"/>
+      <MoveAboveTarget label="blue_drum"/>
+      <DropBall/>
+      <CheckBottomClear/>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="CommunicationTask">
+    <Sequence>
+      <WaitForFlareOrder/>
+
+      <Fallback>
+        <Sequence>
+          <RetryUntilSuccessful num_attempts="3">
+            <Sequence>
+              <Timeout msec="30000">
+                <SearchTarget label="{flare_1}"/>
+              </Timeout>
+              <ApproachTarget label="{flare_1}" distance="3.5"/>
+              <FinalAlignTarget label="{flare_1}"/>
+            </Sequence>
+          </RetryUntilSuccessful>
+          <BumpFlare timeout="15.0"/>
+        </Sequence>
+        <SkipFlare/>
+      </Fallback>
+
+      <Fallback>
+        <Sequence>
+          <RetryUntilSuccessful num_attempts="3">
+            <Sequence>
+              <Timeout msec="30000">
+                <SearchTarget label="{flare_2}"/>
+              </Timeout>
+              <ApproachTarget label="{flare_2}" distance="3.5"/>
+              <FinalAlignTarget label="{flare_2}"/>
+            </Sequence>
+          </RetryUntilSuccessful>
+          <BumpFlare timeout="15.0"/>
+        </Sequence>
+        <SkipFlare/>
+      </Fallback>
+
+      <Fallback>
+        <Sequence>
+          <RetryUntilSuccessful num_attempts="3">
+            <Sequence>
+              <Timeout msec="30000">
+                <SearchTarget label="{flare_3}"/>
+              </Timeout>
+              <ApproachTarget label="{flare_3}" distance="3.5"/>
+              <FinalAlignTarget label="{flare_3}"/>
+            </Sequence>
+          </RetryUntilSuccessful>
+          <BumpFlare timeout="15.0"/>
+        </Sequence>
+        <SkipFlare/>
+      </Fallback>
+    </Sequence>
+  </BehaviorTree>
+
+  <BehaviorTree ID="TargetReacquisition">
+    <Sequence>
+      <SetCamera mode="realsense"/>
+      <GoToPose pose_key="drop_pose"/>
+      <SetCamera mode="usb"/>
+      <RetryUntilSuccessful num_attempts="100">
+        <Fallback>
+          <Sequence>
+            <SearchBottomTarget label="ball"/>
+            <MoveAboveTarget label="ball"/>
+            <ExtendArm/>
+            <GrabBall/>
+            <RetractArm/>
+          </Sequence>
+          <ForceFailure>
+            <SpiralSearchBottom/>
+          </ForceFailure>
+        </Fallback>
+      </RetryUntilSuccessful>
     </Sequence>
   </BehaviorTree>
 

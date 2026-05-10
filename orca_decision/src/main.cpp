@@ -4,6 +4,9 @@
 #include <behaviortree_cpp_v3/bt_factory.h>
 
 void RegisterBehaviorTreeNodes(BT::BehaviorTreeFactory& factory, std::shared_ptr<DecisionContext> ctx) {
+    // ============================================================
+    // Existing nodes
+    // ============================================================
     factory.registerBuilder<SearchTarget>("SearchTarget", 
         [ctx](const std::string& name, const BT::NodeConfiguration& config) {
             auto node = std::make_unique<SearchTarget>(name, config);
@@ -56,6 +59,116 @@ void RegisterBehaviorTreeNodes(BT::BehaviorTreeFactory& factory, std::shared_ptr
     factory.registerBuilder<SetDepth>("SetDepth", 
         [ctx](const std::string& name, const BT::NodeConfiguration& config) {
             auto node = std::make_unique<SetDepth>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    // ============================================================
+    // New nodes — Task 2: Target Acquisition
+    // ============================================================
+    factory.registerBuilder<MoveAboveTarget>("MoveAboveTarget",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<MoveAboveTarget>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<CheckBottomClear>("CheckBottomClear",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<CheckBottomClear>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<DropBall>("DropBall",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<DropBall>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    // ============================================================
+    // New nodes — Task 4: Communication & Localization
+    // ============================================================
+    factory.registerBuilder<WaitForFlareOrder>("WaitForFlareOrder",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<WaitForFlareOrder>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<BumpFlare>("BumpFlare",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<BumpFlare>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<SkipFlare>("SkipFlare",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<SkipFlare>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    // ============================================================
+    // New nodes — Task 3: Target Reacquisition
+    // ============================================================
+    factory.registerBuilder<GoToPose>("GoToPose",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<GoToPose>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<SearchBottomTarget>("SearchBottomTarget",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<SearchBottomTarget>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<SpiralSearchBottom>("SpiralSearchBottom",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<SpiralSearchBottom>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<ExtendArm>("ExtendArm",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<ExtendArm>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<GrabBall>("GrabBall",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<GrabBall>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<RetractArm>("RetractArm",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<RetractArm>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    // ============================================================
+    // New nodes — Mission Control
+    // ============================================================
+    factory.registerBuilder<WaitForStart>("WaitForStart",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<WaitForStart>(name, config);
+            node->setContext(ctx);
+            return node;
+        });
+
+    factory.registerBuilder<FinishMission>("FinishMission",
+        [ctx](const std::string& name, const BT::NodeConfiguration& config) {
+            auto node = std::make_unique<FinishMission>(name, config);
             node->setContext(ctx);
             return node;
         });

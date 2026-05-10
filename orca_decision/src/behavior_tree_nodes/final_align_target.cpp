@@ -55,7 +55,7 @@ BT::NodeStatus FinalAlignTarget::tick() {
   // Align logic
   MotionCommand cmd;
   cmd.surge = 0.0f;
-  cmd.yaw = 0.005f * error_x;
+  cmd.yaw = -0.005f * error_x;
 
   ctx_->wrench_adapter->setCommand(cmd);
 

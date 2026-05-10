@@ -6,6 +6,7 @@ if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
 endif()
 
 find_package(ament_cmake REQUIRED)
+find_package(ament_index_cpp REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(sensor_msgs REQUIRED)
@@ -37,6 +38,20 @@ set(SOURCES
   src/behavior_tree_nodes/avoid_obstacle.cpp
   src/behavior_tree_nodes/set_camera.cpp
   src/behavior_tree_nodes/set_depth.cpp
+  src/behavior_tree_nodes/move_above_target.cpp
+  src/behavior_tree_nodes/check_bottom_clear.cpp
+  src/behavior_tree_nodes/drop_ball.cpp
+  src/behavior_tree_nodes/wait_for_flare_order.cpp
+  src/behavior_tree_nodes/bump_flare.cpp
+  src/behavior_tree_nodes/skip_flare.cpp
+  src/behavior_tree_nodes/go_to_pose.cpp
+  src/behavior_tree_nodes/search_bottom_target.cpp
+  src/behavior_tree_nodes/spiral_search_bottom.cpp
+  src/behavior_tree_nodes/extend_arm.cpp
+  src/behavior_tree_nodes/grab_ball.cpp
+  src/behavior_tree_nodes/retract_arm.cpp
+  src/behavior_tree_nodes/wait_for_start.cpp
+  src/behavior_tree_nodes/finish_mission.cpp
 )
 
 add_executable(decision_node ${SOURCES})
@@ -45,6 +60,7 @@ target_include_directories(decision_node PUBLIC
   $<INSTALL_INTERFACE:include>
 )
 ament_target_dependencies(decision_node
+  ament_index_cpp
   rclcpp
   std_msgs
   sensor_msgs
