@@ -43,18 +43,6 @@ class_names:
   - red_drum
   - red_flare
   - yellow_flare
-# Legacy ORCA model (10 classes) — uncomment and replace the list above:
-# class_names:
-#   - blue_drum
-#   - blue_flare
-#   - gate
-#   - gate_side
-#   - metal_ball
-#   - orange_flare
-#   - qualification_gate
-#   - red_drum
-#   - red_flare
-#   - yellow_flare
 
 # ── DNN image encoder (values forwarded as launch_arguments, not ros__parameters) ──
 dnn_image_encoder:
@@ -91,7 +79,7 @@ dnn_image_encoder:
     realsense_info_topic:  /orca/color/camera_info
     usb_image_topic:       /orca/usb_cam/image_raw
     usb_info_topic:        /orca/usb_cam/camera_info
-    mode_topic:            /orca/camera_mode
+    mode_topic:            /orca/decision/camera_mode
     selected_image_topic:  /orca/selected/image_raw
     selected_info_topic:   /orca/selected/camera_info
     default_mode:          realsense
@@ -103,7 +91,7 @@ dnn_image_encoder:
     depth_image_topic:        /orca/aligned_depth_to_color/image_raw
     camera_info_topic:        /orca/color/camera_info   # intrinsics read at runtime
     detections_topic:         /detections_output
-    mode_topic:               /orca/camera_mode
+    mode_topic:               /orca/decision/camera_mode
 
     # --- Output topic (consumed by decision node) ---
     perception_output_topic:  /orca/perception_array
@@ -113,9 +101,9 @@ dnn_image_encoder:
     yolo_input_height: 640
 
     # --- Depth estimation thresholds ---
-    depth_min_range:        0.3     # metres — discard depth readings below this
+    depth_min_range:        0.2     # metres — discard depth readings below this
     gate_symmetry_thresh:   0.4     # max left/right depth asymmetry for gate (m)
-    gate_width_min_ratio:   0.4     # gate column span must be > this fraction of bbox width
+    gate_width_min_ratio:   0.6     # gate column span must be > this fraction of bbox width
     gate_col_step:          3       # pixel step between sampled columns
     gate_col_min_samples:   2       # minimum valid columns to accept gate estimate
     gate_col_min_points:    30      # minimum depth pixels in a column to use it
@@ -136,29 +124,3 @@ dnn_image_encoder:
     viz_perception_topic: /orca/perception_array
     viz_native_width:     1280
     viz_native_height:    720
-
-# ── YOLOv8 visualizer (only active when use_viz: true) ────────────────────────
-/yolov8_visualizer:
-  ros__parameters:
-    # SAUVC YOLOv8 model (7 classes):
-    # class names are injected by the launch file from the top-level class_names list
-    names:
-      - blue_drum
-      - blue_flare
-      - gate
-      - orange_flare
-      - red_drum
-      - red_flare
-      - yellow_flare
-    # real model (10 classes) — uncomment and replace the list above:
-    # names:
-    #   - blue_drum
-    #   - blue_flare
-    #   - gate
-    #   - gate_side
-    #   - metal_ball
-    #   - orange_flare
-    #   - qualification_gate
-    #   - red_drum
-    #   - red_flare
-    #   - yellow_flare

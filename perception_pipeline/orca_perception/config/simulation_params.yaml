@@ -7,8 +7,33 @@
 launch:
   use_viz: true
 
+# ── Model profile selection ──────────────────────────────────────────────────
+# Use "qualification" for QualificationMission, "finals" for FinalMission.
+model_profile: finals
+
+model_profiles:
+  finals:
+    model_file_path: /workspaces/isaac_ros-dev/src/finals.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/finals.plan
+    num_classes: 7
+    class_names:
+      - blue_drum
+      - blue_flare
+      - gate
+      - orange_flare
+      - red_drum
+      - red_flare
+      - yellow_flare
+  qualification:
+    model_file_path: /workspaces/isaac_ros-dev/src/qualification.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/qualification.plan
+    num_classes: 1
+    class_names:
+      - gate
+
 # ── Class label mapping (index = class id) ────────────────────────────────────
-# Used by BOTH depth_perception and yolov8_visualizer.
+# Fallback used by BOTH depth_perception and yolov8_visualizer when no
+# model_profiles entry is selected.
 # SAUVC YOLOv8 model (7 classes):
 class_names:
   - blue_drum
@@ -18,18 +43,6 @@ class_names:
   - red_drum
   - red_flare
   - yellow_flare
-# Legacy ORCA model (10 classes) — uncomment and replace the list above:
-# class_names:
-#   - blue_drum
-#   - blue_flare
-#   - gate
-#   - gate_side
-#   - metal_ball
-#   - orange_flare
-#   - qualification_gate
-#   - red_drum
-#   - red_flare
-#   - yellow_flare
 
 # ── DNN image encoder (values forwarded as launch_arguments, not ros__parameters) ──
 dnn_image_encoder:
@@ -43,8 +56,8 @@ dnn_image_encoder:
 # ── TensorRT inference node ────────────────────────────────────────────────────
 /tensor_rt:
   ros__parameters:
-    model_file_path: /workspaces/isaac_ros-dev/src/sim_best.onnx
-    engine_file_path: /workspaces/isaac_ros-dev/src/sim_best.plan
+    model_file_path: /workspaces/isaac_ros-dev/src/finals.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/finals.plan
     force_engine_update: false
     output_binding_names: ["output0"]
     output_tensor_names: ["output_tensor"]
@@ -66,7 +79,7 @@ dnn_image_encoder:
     realsense_info_topic:  /orca_auv/color/camera_info
     usb_image_topic:       /orca_auv/camera/bottom/image_raw
     usb_info_topic:        /orca_auv/camera/bottom/camera_info
-    mode_topic:            /orca/camera_mode
+    mode_topic:            /orca/decision/camera_mode
     selected_image_topic:  /orca/selected/image_raw
     selected_info_topic:   /orca/selected/camera_info
     default_mode:          realsense
@@ -78,7 +91,7 @@ dnn_image_encoder:
     depth_image_topic:        /orca_auv/depth/image_raw
     camera_info_topic:        /orca_auv/depth/camera_info   # intrinsics read at runtime
     detections_topic:         /detections_output
-    mode_topic:               /orca/camera_mode
+    mode_topic:               /orca/decision/camera_mode
 
     # --- Output topic (consumed by decision node) ---
     perception_output_topic:  /orca/perception_array
@@ -111,29 +124,3 @@ dnn_image_encoder:
     viz_perception_topic: /orca/perception_array
     viz_native_width:     1280
     viz_native_height:    720
-
-# ── YOLOv8 visualizer (only active when use_viz: true) ────────────────────────
-/yolov8_visualizer:
-  ros__parameters:
-    # SAUVC YOLOv8 model (7 classes):
-    # class names are injected by the launch file from the top-level class_names list
-    names:
-      - blue_drum
-      - blue_flare
-      - gate
-      - orange_flare
-      - red_drum
-      - red_flare
-      - yellow_flare
-    # real model (10 classes) — uncomment and replace the list above:
-    # names:
-    #   - blue_drum
-    #   - blue_flare
-    #   - gate
-    #   - gate_side
-    #   - metal_ball
-    #   - orange_flare
-    #   - qualification_gate
-    #   - red_drum
-    #   - red_flare
-    #   - yellow_flare
