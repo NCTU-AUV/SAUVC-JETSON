@@ -317,9 +317,9 @@ class DepthPerceptionNode(Node):
 
                 # Gate labels use gate-specific column sampling regardless of class index.
                 if label == 'gate':
-                    x1_ = max(x1-10, 0)
-                    x2_ = min(x2+10, w-1)
-                    z, valid = self._estimate_gate(x1_, x2_, y1-10, y2, x2_-x1_)
+                    x1_ = max(x1-15, 0)
+                    x2_ = min(x2+15, w-1)
+                    z, valid = self._estimate_gate(x1_, x2_, y1, y2, x2-x1)
                 else:
                     z, valid = self._estimate_object(cx_d, cy_d, bw_d, bh_d,
                                                      x1, x2, y1, y2, w, h)
@@ -373,10 +373,11 @@ class DepthPerceptionNode(Node):
                 column_depths.append((u, float(np.percentile(col, 10))))
 
         if len(column_depths) < self._gate_col_min_samples:
+            # self.get_logger().info(f'Gate rejected: only {len(column_depths)} valid columns (need {self._gate_col_min_samples})')
             return float('nan'), False
 
-        left = min(column_depths[:10], key=lambda x: x[1])
-        right = min(column_depths[len(column_depths)-10:len(column_depths)], key=lambda x: x[1])
+        left = min(column_depths[:15], key=lambda x: x[1])
+        right = min(column_depths[len(column_depths)-15:len(column_depths)], key=lambda x: x[1])
         # self.get_logger().info(f'Left: {left}, Right: {right}')
 
         width_pix  = right[0] - left[0]
@@ -387,6 +388,8 @@ class DepthPerceptionNode(Node):
             z = (left[1] + right[1]) / 2.0
             return z, True
 
+        # self.get_logger().info(f'Gate rejected: width_pix={width_pix:.1f} vs {bw_d * self._gate_w_ratio:.1f}, '
+        #     f'depth_sym={depth_sym:.2f} vs {self._gate_sym_thresh:.2f}')
         return float('nan'), False
 
     def _estimate_object(self, cx_d, cy_d, bw_d, bh_d,
