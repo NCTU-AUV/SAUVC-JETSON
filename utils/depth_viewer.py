@@ -75,7 +75,7 @@ class DepthInspector(Node):
                 if depth_raw == 0:
                     depth_m = 0.0
                 else:
-                    depth_m = float(depth_raw) / 1000.0
+                    depth_m = float(depth_raw)
 
                 text = f"Depth: {depth_m:.3f} m | {self.cursor_x}, {self.cursor_y}"
 
