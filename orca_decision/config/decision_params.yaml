@@ -47,6 +47,10 @@ decision_node:
     bump_flare_surge: 25.0
     bump_flare_timeout_sec: 15.0
 
+    # WaitForFlareOrder
+    wait_for_flare_order_timeout_sec: 5.0
+    wait_for_flare_order_default_order: "rby"
+
     # GoToPose
     go_to_pose_surge: 0.3
     go_to_pose_threshold: 1.0

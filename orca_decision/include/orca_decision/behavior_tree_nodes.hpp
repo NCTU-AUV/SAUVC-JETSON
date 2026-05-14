@@ -171,6 +171,8 @@ public:
     void setContext(std::shared_ptr<DecisionContext> ctx) { ctx_ = ctx; }
 private:
     std::shared_ptr<DecisionContext> ctx_;
+    rclcpp::Time wait_start_time_;
+    bool waiting_started_ = false;
 };
 
 class BumpFlare : public BT::ActionNodeBase {

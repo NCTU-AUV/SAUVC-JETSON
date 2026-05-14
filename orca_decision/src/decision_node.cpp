@@ -68,6 +68,10 @@ void DecisionNode::loadParameters() {
   this->declare_parameter("bump_flare_surge", 0.25);
   this->declare_parameter("bump_flare_timeout_sec", 8.0);
 
+  // WaitForFlareOrder parameters
+  this->declare_parameter("wait_for_flare_order_timeout_sec", 15.0);
+  this->declare_parameter("wait_for_flare_order_default_order", "rby");
+
   // GoToPose parameters
   this->declare_parameter("go_to_pose_surge", 0.3);
   this->declare_parameter("go_to_pose_threshold", 1.0);
