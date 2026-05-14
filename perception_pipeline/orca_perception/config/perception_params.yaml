@@ -13,8 +13,8 @@ model_profile: qualification
 
 model_profiles:
   finals:
-    model_file_path: /workspaces/isaac_ros-dev/src/finals.onnx
-    engine_file_path: /workspaces/isaac_ros-dev/src/finals.plan
+    model_file_path: /workspaces/isaac_ros-dev/src/model/finals.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/model/finals.plan
     num_classes: 7
     class_names:
       - blue_drum
@@ -25,8 +25,8 @@ model_profiles:
       - red_flare
       - yellow_flare
   qualification:
-    model_file_path: /workspaces/isaac_ros-dev/src/qualification.onnx
-    engine_file_path: /workspaces/isaac_ros-dev/src/qualification.plan
+    model_file_path: /workspaces/isaac_ros-dev/src/model/qualification.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/model/qualification.plan
     num_classes: 1
     class_names:
       - gate
@@ -56,8 +56,8 @@ dnn_image_encoder:
 # ── TensorRT inference node ────────────────────────────────────────────────────
 /tensor_rt:
   ros__parameters:
-    model_file_path: /workspaces/isaac_ros-dev/src/finals.onnx
-    engine_file_path: /workspaces/isaac_ros-dev/src/finals.plan
+    model_file_path: /workspaces/isaac_ros-dev/src/model/finals.onnx
+    engine_file_path: /workspaces/isaac_ros-dev/src/model/finals.plan
     force_engine_update: true
     output_binding_names: ["output0"]
     output_tensor_names: ["output_tensor"]
