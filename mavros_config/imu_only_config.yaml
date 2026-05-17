@@ -1,0 +1,4 @@
+/**:
+  ros__parameters:
+    plugin_blacklist: ['*']
+    plugin_allowlist: ['imu', 'sys_time', 'param']
