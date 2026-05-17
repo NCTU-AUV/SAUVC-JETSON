@@ -30,7 +30,7 @@ The node subscribes to perception output (`orca_interface/PerceptionArray`) and 
 | `ApproachTarget` | Action | Approach a detected target until within a specified distance. |
 | `FinalAlignTarget` | Action | Fine yaw+lateral alignment to the target. |
 | `BlindForward` | Action | Drive forward for a fixed duration with optional heading lock. |
-| `TurnToYaw` | Action | Turn to an absolute yaw angle. |
+| `TurnToYaw` | Action | Turn by a relative yaw offset in degrees. |
 | `SetCamera` | Action | Switch the active camera mode (`realsense` / `usb`). |
 | `SetDepth` | Action | Publish a desired depth target. |
 | `AvoidObstacle` | Condition/Action | Reactive obstacle avoidance with sticky cooldown. |

@@ -74,6 +74,8 @@ public:
     void setContext(std::shared_ptr<DecisionContext> ctx) { ctx_ = ctx; }
 private:
     std::shared_ptr<DecisionContext> ctx_;
+    bool started_ = false;
+    double target_yaw_ = 0.0;
 };
 
 class AvoidObstacle : public BT::ActionNodeBase {

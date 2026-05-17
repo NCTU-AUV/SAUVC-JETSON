@@ -25,8 +25,8 @@
         <SubTree ID="PassGateProcedure"/>
       </ReactiveFallback>
 
-      <!-- Turn π radians = 3.14159 -->
-      <TurnToYaw angle="3.14159"/>
+      <!-- Turn 180 degrees relative to current yaw -->
+      <TurnToYaw degrees="180"/>
 
       <BlindForward duration="8.0" heading_lock="true"/>
       <SetDepth depth="0.0"/>
