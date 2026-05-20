@@ -22,7 +22,7 @@ BT::NodeStatus FinalAlignTarget::tick() {
   ctx_->current_action = name();
   ctx_->target_label = label;
 
-  auto obj = ctx_->world_model->getBestObject(label);
+  auto obj = ctx_->world_model->getObjectNearestImageCenter(label, 320.0f, 240.0f);
   if (!obj.has_value()) {
     aligning_ = false;
     ctx_->debug_msg = "Target lost: " + label;

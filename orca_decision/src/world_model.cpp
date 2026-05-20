@@ -2,6 +2,9 @@
 #include <tf2/LinearMath/Quaternion.h>
 #include <tf2/LinearMath/Matrix3x3.h>
 #include <algorithm>
+#include <cmath>
+#include <limits>
+#include <unordered_set>
 
 WorldModel::WorldModel(rclcpp::Node* node, double velocity_decay, double max_vel, double timeout_sec)
     : node_(node), velocity_decay_(velocity_decay), max_velocity_clamp_(max_vel), perception_timeout_sec_(timeout_sec)
@@ -11,6 +14,23 @@ WorldModel::WorldModel(rclcpp::Node* node, double velocity_decay, double max_vel
 void WorldModel::updateFromPerception(const orca_interface::msg::PerceptionArray::SharedPtr msg) {
     std::lock_guard<std::mutex> lock(mutex_);
     rclcpp::Time now = node_->now();
+    std::unordered_set<std::string> updated_labels;
+
+    for (const auto& obj : msg->objects) {
+        if (obj.is_stable) {
+            updated_labels.insert(obj.label);
+        }
+    }
+
+    if (!updated_labels.empty()) {
+        tracked_objects_.erase(
+            std::remove_if(
+                tracked_objects_.begin(), tracked_objects_.end(),
+                [&](const TrackedObject& tracked) {
+                    return updated_labels.count(tracked.label) > 0;
+                }),
+            tracked_objects_.end());
+    }
 
     for (const auto& obj : msg->objects) {
         if (!obj.is_stable) continue;
@@ -32,15 +52,7 @@ void WorldModel::updateFromPerception(const orca_interface::msg::PerceptionArray
         Eigen::Vector3d pos_world = position_ + (orientation_ * pos_camera);
         tracked.position_world = pos_world;
 
-        // Update existing or add new
-        auto it = std::find_if(tracked_objects_.begin(), tracked_objects_.end(),
-            [&](const TrackedObject& t) { return t.label == obj.label; });
-
-        if (it != tracked_objects_.end()) {
-            *it = tracked;
-        } else {
-            tracked_objects_.push_back(tracked);
-        }
+        tracked_objects_.push_back(tracked);
     }
 
     removeStaleObjects();
@@ -109,6 +121,35 @@ std::optional<TrackedObject> WorldModel::getBestObject(const std::string& label)
         if (obj.label == label && obj.confidence > max_conf) {
             best = obj;
             max_conf = obj.confidence;
+        }
+    }
+
+    return best;
+}
+
+std::optional<TrackedObject> WorldModel::getObjectNearestImageCenter(
+    const std::string& label, float center_x, float center_y) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    removeStaleObjects();
+
+    std::optional<TrackedObject> best;
+    float best_dist_sq = std::numeric_limits<float>::max();
+    float best_conf = -1.0f;
+
+    for (const auto& obj : tracked_objects_) {
+        if (obj.label != label) {
+            continue;
+        }
+
+        const float dx = obj.cx - center_x;
+        const float dy = obj.cy - center_y;
+        const float dist_sq = dx * dx + dy * dy;
+
+        if (dist_sq < best_dist_sq ||
+            (dist_sq == best_dist_sq && obj.confidence > best_conf)) {
+            best = obj;
+            best_dist_sq = dist_sq;
+            best_conf = obj.confidence;
         }
     }
 

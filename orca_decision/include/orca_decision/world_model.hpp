@@ -29,6 +29,8 @@ public:
     void updateFromIMU(const sensor_msgs::msg::Imu::SharedPtr msg);
 
     std::optional<TrackedObject> getBestObject(const std::string& label);
+    std::optional<TrackedObject> getObjectNearestImageCenter(
+        const std::string& label, float center_x, float center_y);
     std::vector<TrackedObject> getObjects();
 
     Eigen::Vector3d getAUVPosition();
