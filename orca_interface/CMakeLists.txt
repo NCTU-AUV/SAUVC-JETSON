@@ -19,7 +19,6 @@ find_package(geometry_msgs REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/PerceptionObject.msg"
   "msg/PerceptionArray.msg"
-  "msg/FSMStatus.msg"
   "msg/DecisionStatus.msg"
   DEPENDENCIES std_msgs geometry_msgs
 )
