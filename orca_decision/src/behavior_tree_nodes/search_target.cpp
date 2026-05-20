@@ -31,7 +31,7 @@ BT::NodeStatus SearchTarget::tick() {
 
     // Not found, perform yaw sweep
     MotionCommand cmd;
-    cmd.yaw = 0.5f; // Constant yaw sweep
+    cmd.yaw = 2.0f; // Constant yaw sweep
     ctx_->wrench_adapter->setCommand(cmd);
 
     return BT::NodeStatus::RUNNING;
