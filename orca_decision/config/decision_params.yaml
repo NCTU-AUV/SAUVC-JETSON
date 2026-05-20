@@ -1,9 +1,9 @@
 decision_node:
   ros__parameters:
     # Wrench Controller Parameters
-    k_surge: 1.0
-    k_sway: 1.0
-    k_yaw: 0.5
+    k_surge: 0.4
+    k_sway: 0.4
+    k_yaw: 0.3
     motion_lowpass_alpha: 0.2
 
     # World Model Parameters

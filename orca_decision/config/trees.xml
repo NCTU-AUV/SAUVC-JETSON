@@ -5,12 +5,12 @@
       <RetryUntilSuccessful num_attempts="30">
         <Sequence>
           <SearchTarget label="gate"/>
-          <SetDepth depth="1.1"/>
-          <ApproachTarget label="gate" distance="3.5"/>
+          <SetDepth depth="0.2"/>
+          <ApproachTarget label="gate" distance="3.0"/>
           <FinalAlignTarget label="gate"/>
         </Sequence>
       </RetryUntilSuccessful>
-      <BlindForward duration="12.0" heading_lock="true"/>
+      <BlindForward duration="20.0" heading_lock="true"/>
     </Sequence>
   </BehaviorTree>
 
@@ -18,8 +18,8 @@
     <Sequence>
       <!-- WaitForStart is simulated by the decision node triggering BT tick based on topic -->
       <SetCamera mode="realsense"/>
-      <SetDepth depth="0.7"/>
-      
+      <SetDepth depth="0.2"/>
+
       <ReactiveFallback>
         <AvoidObstacle/>
         <SubTree ID="PassGateProcedure"/>
@@ -28,7 +28,7 @@
       <!-- Turn 180 degrees relative to current yaw -->
       <TurnToYaw degrees="180"/>
 
-      <BlindForward duration="8.0" heading_lock="true"/>
+      <BlindForward duration="15.0" heading_lock="true"/>
       <SetDepth depth="0.0"/>
     </Sequence>
   </BehaviorTree>
@@ -37,7 +37,7 @@
     <Sequence>
       
       <SetCamera mode="realsense"/>
-      <SetDepth depth="1.1"/>
+      <SetDepth depth="0.7"/>
 
       <ReactiveFallback>
         <AvoidObstacle sticky_time="1.0"/>
@@ -50,7 +50,7 @@
       <SetCamera mode="realsense"/>
       <SetDepth depth="1.1"/>
       <SubTree ID="PassGateProcedure"/>
-      
+
       <SubTree ID="CommunicationTask"/>
 
       <SetDepth depth="0.5"/>
@@ -88,7 +88,7 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_1}"/>
               </Timeout>
-              <ApproachTarget label="{flare_1}" distance="3.5"/>
+              <ApproachTarget label="{flare_1}" distance="0.5"/>
               <FinalAlignTarget label="{flare_1}"/>
             </Sequence>
           </RetryUntilSuccessful>
@@ -104,7 +104,7 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_2}"/>
               </Timeout>
-              <ApproachTarget label="{flare_2}" distance="3.5"/>
+              <ApproachTarget label="{flare_2}" distance="0.5"/>
               <FinalAlignTarget label="{flare_2}"/>
             </Sequence>
           </RetryUntilSuccessful>
@@ -120,7 +120,7 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_3}"/>
               </Timeout>
-              <ApproachTarget label="{flare_3}" distance="3.5"/>
+              <ApproachTarget label="{flare_3}" distance="0.5"/>
               <FinalAlignTarget label="{flare_3}"/>
             </Sequence>
           </RetryUntilSuccessful>
