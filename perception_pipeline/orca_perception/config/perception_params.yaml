@@ -9,7 +9,7 @@ launch:
 
 # ── Model profile selection ──────────────────────────────────────────────────
 # Use "qualification" for QualificationMission, "finals" for FinalMission.
-model_profile: qualification
+model_profile: finals
 
 model_profiles:
   finals:
@@ -58,7 +58,7 @@ dnn_image_encoder:
   ros__parameters:
     model_file_path: /workspaces/isaac_ros-dev/src/model/finals.onnx
     engine_file_path: /workspaces/isaac_ros-dev/src/model/finals.plan
-    force_engine_update: true
+    force_engine_update: false
     output_binding_names: ["output0"]
     output_tensor_names: ["output_tensor"]
     input_tensor_names: ["input_tensor"]
