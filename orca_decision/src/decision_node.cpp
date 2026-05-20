@@ -118,7 +118,7 @@ void DecisionNode::setupInterfaces() {
   auto camera_mode_qos = rclcpp::QoS(1).reliable().transient_local();
 
   imu_sub_ = this->create_subscription<sensor_msgs::msg::Imu>(
-      "/orca_auv/sensors/imu", default_qos,
+      "/orca/imu/data", rclcpp::SensorDataQoS(),
       std::bind(&DecisionNode::imuCallback, this, std::placeholders::_1));
 
   perception_sub_ =
