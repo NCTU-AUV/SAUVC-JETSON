@@ -36,7 +36,7 @@ BT::NodeStatus FinalAlignTarget::tick() {
   float error_x = 320.0f - obj->cx;
 
   // Check if within threshold
-  if (std::abs(error_x) < 10.0f) { // pixel threshold
+  if (std::abs(error_x) < 20.0f) { // pixel threshold
     if (!aligning_) {
       aligning_ = true;
       align_start_time_ = ctx_->node->now();
