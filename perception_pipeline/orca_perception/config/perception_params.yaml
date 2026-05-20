@@ -102,10 +102,10 @@ dnn_image_encoder:
 
     # --- Depth estimation thresholds ---
     depth_min_range:        0.2     # metres — discard depth readings below this
-    gate_symmetry_thresh:   0.4     # max left/right depth asymmetry for gate (m)
+    gate_symmetry_thresh:   1.5     # max left/right depth asymmetry for gate (m)
     gate_width_min_ratio:   0.6     # gate column span must be > this fraction of bbox width
-    gate_col_step:          3       # pixel step between sampled columns
-    gate_col_min_samples:   2       # minimum valid columns to accept gate estimate
+    gate_col_step:          2       # pixel step between sampled columns
+    gate_col_min_samples:   5       # minimum valid columns to accept gate estimate
     gate_col_min_points:    30      # minimum depth pixels in a column to use it
     obj_center_crop_ratio:  0.5     # fraction of bbox used for centre-crop sampling
     obj_percentile:         10      # depth percentile used for foreground estimation
