@@ -30,14 +30,10 @@ BT::NodeStatus CheckBottomClear::tick() {
 
     const double timeout_sec =
         ctx_->node->get_parameter("check_bottom_clear_timeout_sec").as_double();
-    const double sway_speed =
-        ctx_->node->get_parameter("check_bottom_clear_sway_speed").as_double();
+    const double surge_speed =
+        ctx_->node->get_parameter("check_bottom_clear_surge_speed").as_double();
     const int required_clear_frames =
         ctx_->node->get_parameter("check_bottom_clear_stable_frames").as_int();
-    const double center_x =
-        ctx_->node->get_parameter("bottom_cam_center_x").as_double();
-    const double center_deadband =
-        ctx_->node->get_parameter("check_bottom_clear_center_deadband").as_double();
 
     const rclcpp::Time now = ctx_->node->now();
     if (!started_) {
@@ -72,24 +68,11 @@ BT::NodeStatus CheckBottomClear::tick() {
 
     clear_frames_ = 0;
 
-    double mean_cx = 0.0;
-    for (const auto& obj : objects) {
-        mean_cx += static_cast<double>(obj.cx);
-    }
-    mean_cx /= static_cast<double>(objects.size());
-
     MotionCommand cmd;
-    const double offset_x = mean_cx - center_x;
-    if (std::abs(offset_x) <= center_deadband) {
-        cmd.sway = static_cast<float>(sway_speed);
-    } else if (offset_x > 0.0) {
-        cmd.sway = static_cast<float>(-sway_speed);
-    } else {
-        cmd.sway = static_cast<float>(sway_speed);
-    }
+    cmd.surge = static_cast<float>(-surge_speed);
 
     ctx_->wrench_adapter->setCommand(cmd);
-    ctx_->debug_msg = "CheckBottomClear: swaying to clear " +
+    ctx_->debug_msg = "CheckBottomClear: backing up to clear " +
                       std::to_string(objects.size()) + " detection(s)";
     return BT::NodeStatus::RUNNING;
 }

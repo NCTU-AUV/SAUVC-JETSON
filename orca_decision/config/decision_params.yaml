@@ -38,7 +38,7 @@ decision_node:
     bottom_cam_center_y: 240.0
 
     # CheckBottomClear
-    check_bottom_clear_sway_speed: 10.0
+    check_bottom_clear_surge_speed: 10.0
     check_bottom_clear_stable_frames: 15
     check_bottom_clear_timeout_sec: 20.0
     check_bottom_clear_center_deadband: 20.0

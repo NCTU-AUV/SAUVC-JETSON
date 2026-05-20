@@ -55,7 +55,7 @@ void DecisionNode::loadParameters() {
   this->declare_parameter("move_above_stable_frames", 10);
   this->declare_parameter("move_above_timeout_sec", 30.0);
   this->declare_parameter("move_above_lowpass_alpha", 0.3);
-  this->declare_parameter("check_bottom_clear_sway_speed", 0.2);
+  this->declare_parameter("check_bottom_clear_surge_speed", 0.2);
   this->declare_parameter("check_bottom_clear_stable_frames", 3);
   this->declare_parameter("check_bottom_clear_timeout_sec", 10.0);
   this->declare_parameter("check_bottom_clear_center_deadband", 20.0);
