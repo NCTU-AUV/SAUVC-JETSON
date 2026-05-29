@@ -4,6 +4,3 @@
 [submodule "sauvc_sim"]
 	path = sauvc_sim
 	url = https://github.com/NCTU-AUV/SAUVC-Simulation
-[submodule "sauvc_rpi"]
-	path = sauvc_rpi
-	url = https://github.com/NCTU-AUV/SAUVC-RPI
