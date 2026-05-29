@@ -34,7 +34,7 @@ BT::NodeStatus AvoidObstacle::tick() {
             // Check if distance < threshold and near center
             // Assume image width 640, center is 320, near center is say within 100 pixels
             // Distance threshold say 1.5m
-            if (obj.distance > 0 && obj.distance < 2.0 && std::abs(obj.cx - 320.0) < 100.0) {
+            if (obj.distance > 0 && obj.distance < 2.0 && std::abs(obj.cx - 320.0) < 200.0) {
                 danger = true;
                 danger_obj = obj;
                 break;
@@ -51,13 +51,13 @@ BT::NodeStatus AvoidObstacle::tick() {
         ctx_->debug_msg = "Avoiding " + danger_obj.label;
         
         MotionCommand cmd;
-        cmd.surge = 0.2f; // small forward
+        cmd.surge = 5.0f; // small forward
         // Sway away from object. If obj is to the right (cx > 320), sway left (negative).
         // If obj is to the left (cx < 320), sway right (positive).
         if (danger_obj.cx > 320.0f) {
-            cmd.sway = -5.0f; 
+            cmd.sway = -10.0f; 
         } else {
-            cmd.sway = 5.0f;
+            cmd.sway = 10.0f;
         }
         ctx_->wrench_adapter->setCommand(cmd);
         return BT::NodeStatus::RUNNING;
