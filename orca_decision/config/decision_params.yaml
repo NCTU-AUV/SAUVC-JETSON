@@ -1,8 +1,8 @@
 decision_node:
   ros__parameters:
     # Wrench Controller Parameters
-    k_surge: 0.4
-    k_sway: 0.4
+    k_surge: 0.8
+    k_sway: 0.8
     k_yaw: 0.3
     motion_lowpass_alpha: 0.2
 
@@ -38,9 +38,9 @@ decision_node:
     bottom_cam_center_y: 240.0
 
     # CheckBottomClear
-    check_bottom_clear_surge_speed: 10.0
+    check_bottom_clear_surge_speed: 15.0
     check_bottom_clear_stable_frames: 15
-    check_bottom_clear_timeout_sec: 20.0
+    check_bottom_clear_timeout_sec: 40.0
     check_bottom_clear_center_deadband: 20.0
 
     # BumpFlare
