@@ -147,7 +147,7 @@ void DecisionNode::setupInterfaces() {
       this->create_publisher<std_msgs::msg::Int32>("/orca/decision/arm",
                                                    command_qos);
   hand_pub_ =
-      this->create_publisher<std_msgs::msg::Int32>("/orca/decision/hand",
+      this->create_publisher<std_msgs::msg::Bool>("/orca/decision/hand",
                                                    command_qos);
   status_pub_ = this->create_publisher<orca_interface::msg::DecisionStatus>(
       "/orca/decision/status", default_qos);

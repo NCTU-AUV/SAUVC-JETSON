@@ -38,13 +38,13 @@ BT::NodeStatus DropBall::tick() {
             if (elapsed >= 0.3) {
                 phase_ = 1;
                 phase_start_ = now;
-                // Release ball: publish hand = 1
+                // Publish hand = true (on / open / release)
                 if (ctx_->hand_pub) {
-                    std_msgs::msg::Int32 msg;
-                    msg.data = 1;
+                    std_msgs::msg::Bool msg;
+                    msg.data = true;
                     ctx_->hand_pub->publish(msg);
                 }
-                ctx_->debug_msg = "DropBall: ball released";
+                ctx_->debug_msg = "DropBall: hand on";
             }
             return BT::NodeStatus::RUNNING;
         }

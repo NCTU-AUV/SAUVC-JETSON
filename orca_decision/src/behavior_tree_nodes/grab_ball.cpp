@@ -23,14 +23,14 @@ BT::NodeStatus GrabBall::tick() {
     if (!started_) {
         started_ = true;
         start_time_ = now;
-        // Publish hand = 0 (close / grab)
+        // Publish hand = false (off / close / grab)
         if (ctx_->hand_pub) {
-            std_msgs::msg::Int32 msg;
-            msg.data = 0;
+            std_msgs::msg::Bool msg;
+            msg.data = false;
             ctx_->hand_pub->publish(msg);
         }
-        ctx_->debug_msg = "GrabBall: closing hand";
-        RCLCPP_INFO(ctx_->node->get_logger(), "GrabBall: hand=0 published");
+        ctx_->debug_msg = "GrabBall: hand off";
+        RCLCPP_INFO(ctx_->node->get_logger(), "GrabBall: hand=false published");
         return BT::NodeStatus::RUNNING;
     }
 

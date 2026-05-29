@@ -57,7 +57,7 @@ private:
   rclcpp::Publisher<std_msgs::msg::Float64>::SharedPtr desired_depth_pub_;
   rclcpp::Publisher<std_msgs::msg::String>::SharedPtr camera_mode_pub_;
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr arm_pub_;
-  rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr hand_pub_;
+  rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr hand_pub_;
   rclcpp::Publisher<orca_interface::msg::DecisionStatus>::SharedPtr status_pub_;
 
   std::string tree_xml_file_;
