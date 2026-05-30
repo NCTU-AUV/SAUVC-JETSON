@@ -41,7 +41,7 @@ BT::NodeStatus DropBall::tick() {
                 // Publish hand = true (on / open / release)
                 if (ctx_->hand_pub) {
                     std_msgs::msg::Bool msg;
-                    msg.data = true;
+                    msg.data = false;
                     ctx_->hand_pub->publish(msg);
                 }
                 ctx_->debug_msg = "DropBall: hand on";
