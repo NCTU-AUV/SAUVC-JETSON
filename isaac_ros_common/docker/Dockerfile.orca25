@@ -1,22 +1,44 @@
-# Start from the Isaac ROS development image
+# =============================================================================
+# Orca AUV 專案層 —— 疊在 Isaac ROS 開發映像之上
+# =============================================================================
+# 這是整個映像鏈的**最外層**，也是唯一屬於本專案、可以安全修改的一層。
+#
+# 為什麼不要去動下層的 Dockerfile.base / .aarch64 / .ros2_humble：
+# build_image_layers.sh 會用「Dockerfile 鏈的 md5」去 nvcr.io/nvidia/isaac/ros
+# 找預先建好的映像（tag 形如 aarch64-ros2_humble-realsense_<md5>）。
+# 改動下層任何一個檔案，hash 就對不上，Jetson 只能從頭 build 那 17.8 GB 的
+# base（含 bloom 編 MoveIt / rclcpp / image_pipeline），要好幾個小時。
+# 也就是說「砍 dependency 讓 build 變快」在這個架構下會得到完全相反的結果。
+#
+# 改本檔案則不影響 base 的 hash（已實測：aarch64.ros2_humble.realsense 的
+# md5 不隨本檔案改變），因為 NVIDIA 本來就不會發布含專案層的完整鏈映像。
+#
+# 真正縮短「環境 build 起來很慢」的做法，依效益排序：
+#   1. 不要在 Jetson 上 build。用 x86 機器 buildx 出 arm64 映像推到 registry，
+#      Jetson 只 docker pull。見 scripts/orca_registry.sh。
+#   2. workspace 裡不需要的東西加 COLCON_IGNORE（見 legacy/）。
+#   3. TensorRT engine（.plan）預先建好並掛 volume 快取，
+#      不要每次容器重建都重跑一次。
+# -----------------------------------------------------------------------------
 ARG BASE_IMAGE
 FROM ${BASE_IMAGE}
 
-# Install additional ROS packages
+# 感知管線需要的 Isaac ROS 套件。
+# 刻意不裝 isaac_ros_detectnet 與 isaac_ros_triton —— 本專案的推論路徑是
+# dnn_image_encoder → tensor_rt → yolov8_decoder，那兩個沒有任何地方用到。
 RUN apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
     ros-humble-isaac-ros-yolov8 \
     ros-humble-isaac-ros-dnn-image-encoder \
     ros-humble-isaac-ros-tensor-rt \
  && rm -rf /var/lib/apt/lists/*
 
-RUN apt-get update && apt-get install -y lsb-release gnupg curl && \
-    curl https://packages.osrfoundation.org/gazebo.gpg -o /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/pkgs-osrf-archive-keyring.gpg] http://packages.osrfoundation.org/gazebo/ubuntu-stable $(lsb_release -cs) main" \
-        | tee /etc/apt/sources.list.d/gazebo-stable.list > /dev/null && \
-    apt-get update -y && \
-    apt-get install -y ignition-fortress ros-humble-ros-gz && \
-    rm -rf /var/lib/apt/lists/*
+# NOTE: 這裡曾經裝過 ignition-fortress 與 ros-humble-ros-gz。
+# 已移除，理由有二：
+#   1. 實機上的 Isaac 容器永遠不會跑 Gazebo。
+#   2. 模擬有自己的容器（SAUVC-Simulation），裝在這裡是完整重複一套模擬器。
+# 需要模擬請起 SAUVC-Simulation，兩個容器透過同一個 ROS 2 graph 溝通。
 
 RUN pip install numpy==1.26.4 --force-reinstall
+
 COPY scripts/entrypoint_orca25.sh /usr/local/bin/scripts/entrypoint_additions/
 RUN echo "source /usr/local/bin/scripts/entrypoint_additions/entrypoint_orca25.sh" >> /etc/bash.bashrc
