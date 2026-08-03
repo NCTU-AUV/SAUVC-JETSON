@@ -12,7 +12,7 @@
 4. [決策層 Decision](#4-決策層-decision)
 5. [訊息介面定義：orca_interface](#5-訊息介面定義orca_interface)
 6. [感測器／飛控介面：mavros_config](#6-感測器飛控介面mavros_config)
-7. [模擬環境：sauvc_sim（deprecated）](#7-模擬環境sauvc_simdeprecated)
+7. [已移入 legacy 的東西](#7-已移入-legacy-的東西)
 8. [開發／除錯工具：utils](#8-開發除錯工具utils)
 9. [模型檔案：model/](#9-模型檔案model)
 10. [已知問題與待清理事項](#10-已知問題與待清理事項)
@@ -42,7 +42,6 @@ USB 底部攝影機      ┼→ camera_selector      →   decision_node        
 | 感知 | `camera_selector`, `isaac_ros_yolov8`, `depth_perception`, `orca_perception` | 影像 → 2D 偵測 → 3D 定位 |
 | 決策 | `orca_decision` | Behavior Tree 任務執行、輸出控制指令 |
 | 介面定義 | `orca_interface` | 感知層與決策層共用的自訂訊息 |
-| 模擬 | `sauvc_sim`（deprecated，改用 `SAUVC-Simulation`） | Gazebo 場景 |
 
 ---
 
@@ -284,11 +283,33 @@ plugin_allowlist: ['imu', 'sys_time', 'param']
 
 ---
 
-## 7. 模擬環境：`sauvc_sim`（deprecated）
+## 7. 已移入 `legacy` 的東西
 
-Gazebo Fortress + ROS 2 Humble 場景，已被獨立的 `SAUVC-Simulation` repo 取代。內容包含比賽場景（`worlds/`：`sauvc.world` / `sauvc25.world`）、道具與載具模型（`models/`：gate、drum、flare、golf_ball 等）、教學/測試腳本（`entity_spawner.py`, `teleop25.py`）。僅作歷史/備用參考。
+`legacy/` 底下有一個空的 `COLCON_IGNORE`，整個子樹不會被編譯。原始碼保留在
+git 裡供查閱，理由見 [legacy/README.md](legacy/README.md)。
 
----
+| Package | 被誰取代 |
+|---|---|
+| `sauvc_sim` | 獨立的 `SAUVC-Simulation` repo（自己的容器與 Gazebo Fortress 場景） |
+| `fsm_decision` | `orca_decision`（BehaviorTree.CPP） |
+
+同批移除的還有 `realsense-ros` submodule（與 `Dockerfile.realsense` 裝進映像的
+NVIDIA fork 重複，且從未初始化）與 `Dockerfile.orca`（已被 `Dockerfile.orca25`
+取代）。
+
+Isaac 映像本身也一併瘦身：`Dockerfile.orca25` 不再安裝 `ignition-fortress` 與
+`ros-humble-ros-gz` —— 實機的 Isaac 容器永遠不會跑 Gazebo，而模擬有自己的容器。
+這一層從 1.1 GB 降到 0.3 GB。
+
+> **不要為了瘦身去改下層的 Dockerfile。** `build_image_layers.sh` 用
+> 「Dockerfile 鏈的 md5」向 `nvcr.io/nvidia/isaac/ros` 查詢預先建好的映像；
+> 改動 `Dockerfile.base` / `.aarch64` / `.ros2_humble` 會讓查詢失敗，
+> Jetson 只能從頭 build 那 17.8 GB 的 base（含 bloom 編 MoveIt / rclcpp），
+> 要好幾個小時 —— 砍 dependency 反而讓 build 大幅變慢。
+> 專案自己的改動放最外層的 `Dockerfile.orca25`，不影響該 hash（已實測驗證）。
+>
+> 真正的解法是**不要在 Jetson 上 build**：用 x86 機器建好推 registry，
+> Jetson 只 `pull`。見 `isaac_ros_common/scripts/orca_registry.sh`。
 
 ## 8. 開發／除錯工具：`utils`
 

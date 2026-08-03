@@ -40,7 +40,6 @@ Refer to README in each package folder for more details.
 | [`depth_perception`](perception_pipeline/depth_perception/) | `src/perception_pipeline/depth_perception` | Depth estimation + multi-frame stability tracking |
 | [`orca_perception`](perception_pipeline/orca_perception/) | `src/perception_pipeline/orca_perception` | Unified perception launcher & YAML config |
 | [`orca_decision`](orca_decision/) | `src/orca_decision` | BehaviorTree.CPP mission decision system |
-| [`sauvc_sim(deprecated)`](sauvc_sim/) | `src/sauvc_sim` | Gazebo simulation environment |
 
 ## Quick Start
 
@@ -75,6 +74,28 @@ echo "alias isa='cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common && ./scripts
 source ~/.bashrc
 isa    # builds the image on first run (~40 min), then enters bash
 ```
+
+> **Do not build this image on the Jetson if you can avoid it.** The image is
+> ~20 GB of content, 86% of which comes from NVIDIA's base layer (Triton +
+> CUDA devel + PyTorch + TensorRT) — nothing we can trim. Build it once on an
+> x86 machine, push it to a registry, and `pull` everywhere else:
+>
+> ```bash
+> # on the x86 build machine
+> ./scripts/orca_registry.sh build --arm64
+> ./scripts/orca_registry.sh push
+>
+> # on the Jetson
+> ./scripts/orca_registry.sh pull
+> isa    # now reuses the pulled image instead of rebuilding
+> ```
+>
+> Also: **never edit `docker/Dockerfile.base`, `.aarch64` or `.ros2_humble`.**
+> `build_image_layers.sh` looks up NVIDIA's prebuilt images by an md5 of the
+> Dockerfile chain — changing any of those files invalidates the lookup and
+> forces a multi-hour from-scratch build of the 17.8 GB base. Project-specific
+> changes belong in `docker/Dockerfile.orca25`, the outermost layer, which does
+> not affect that hash.
 
 To open additional terminals inside the **same container**, simply run `isa` from any new terminal.
 
@@ -128,17 +149,22 @@ ros2 topic echo /orca_auv/control/wrench_sources/decision
 
 ---
 
-## Gazebo Simulation (deprecated, go with SAUVC-Simulation)
+## Gazebo Simulation
 
-```bash
-# Terminal A — Launch Gazebo environment
-ros2 launch sauvc_sim sauvc25_launch.py
+Simulation lives in its own repository and its own container:
+[SAUVC-Simulation](https://github.com/NCTU-AUV/SAUVC-Simulation). Start the
+Gazebo world there, then run the perception + decision pipeline here with
+`simulation_params.yaml` — the two containers share one ROS 2 graph.
 
-# Terminal B — Keyboard teleop (optional)
-ros2 run sauvc_sim teleop25.py --ros-args -r /cmd_vel:=/fsm/cmd_vel
-```
+Gazebo is deliberately **not** installed in this image any more (it used to be,
+duplicating the simulation container for no benefit). The old in-repo
+`sauvc_sim` package now lives in [`legacy/`](legacy/) and is not built.
 
-Then run the perception + decision pipeline as described above using `simulation_params.yaml`.
+> Cross-container discovery requires `RMW_IMPLEMENTATION`, `ROS_DOMAIN_ID` and
+> the DDS transport to match across every container. In particular
+> `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` — without it Fast DDS advertises shared
+> memory locators that the other containers cannot reach, and participants
+> match but data never flows, with no error message at all.
 
 ## Useful Debug Commands
 
