@@ -90,8 +90,13 @@ void WorldModel::updateFromIMU(const sensor_msgs::msg::Imu::SharedPtr msg) {
     
     Eigen::Vector3d acc_world = orientation_ * acc_body;
 
-    // Remove gravity (assume standard ROS ENU, Z is up, so sensor reads +9.81 when stationary)
-    acc_world.z() -= 9.81;
+    // Remove gravity. The vehicle frame is down-positive (the control stack's
+    // sink direction is +z), so the gravity vector is (0, 0, +9.81) and an
+    // accelerometer at rest measures the specific force -g, i.e. z = -9.81.
+    // Recovering coordinate acceleration is therefore a = f + g — an addition.
+    // Subtracting here instead gave -19.62 m/s^2 at rest and the dead-reckoned
+    // position free-fell (observed: z = -253 m after 20 s of a static mission).
+    acc_world.z() += 9.81;
 
     // Integrate velocity
     velocity_ += acc_world * dt;
