@@ -119,7 +119,10 @@ class DepthPerceptionNode(Node):
         self.declare_parameter('camera_info_topic',
                                '/orca/color/camera_info')
         self.declare_parameter('detections_topic',        '/detections_output')
-        self.declare_parameter('mode_topic',              '/orca/camera_mode')
+        # Must match what decision_node publishes; a stale default here means
+        # bottom-camera detections keep being resolved against the front depth
+        # image, with no warning.
+        self.declare_parameter('mode_topic',              '/orca/decision/camera_mode')
         self.declare_parameter('perception_output_topic', '/orca/perception_array')
         self.declare_parameter('yolo_input_width',        640)
         self.declare_parameter('yolo_input_height',       640)

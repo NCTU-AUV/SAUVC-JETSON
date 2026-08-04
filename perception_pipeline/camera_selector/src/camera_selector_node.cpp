@@ -19,7 +19,9 @@ CameraSelectorNode::CameraSelectorNode(const rclcpp::NodeOptions & options)
   this->declare_parameter<std::string>("realsense_info_topic",  "/orca/color/camera_info");
   this->declare_parameter<std::string>("usb_image_topic",       "/orca/usb_cam/image_raw");
   this->declare_parameter<std::string>("usb_info_topic",        "/orca/usb_cam/camera_info");
-  this->declare_parameter<std::string>("mode_topic",            "/orca/camera_mode");
+  // Must match what decision_node publishes; a stale default here silently
+  // pins the selector to whatever default_mode says for the whole run.
+  this->declare_parameter<std::string>("mode_topic",            "/orca/decision/camera_mode");
   this->declare_parameter<std::string>("selected_image_topic",  "/orca/selected/image_raw");
   this->declare_parameter<std::string>("selected_info_topic",   "/orca/selected/camera_info");
   this->declare_parameter<std::string>("default_mode",          "realsense");
