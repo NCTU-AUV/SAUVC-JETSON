@@ -17,11 +17,9 @@ import os
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, OpaqueFunction
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
-
-
-TRUE_VALUES = ('true', 'True', '1')
 
 
 def generate_launch_description():
@@ -49,13 +47,20 @@ def generate_launch_description():
 
     def create_actions(context, *args, **kwargs):
         namespace = LaunchConfiguration('namespace').perform(context)
-        use_perception = LaunchConfiguration('use_perception').perform(context)
         perception_config = LaunchConfiguration('perception_config').perform(context)
         use_viz = LaunchConfiguration('use_viz').perform(context)
 
+        # launch 自己的條件語意：strip + lower，接受 true/1/false/0，其餘 raise。
+        # 原本是拿 ('true', 'True', '1') 這個手寫 tuple 做比對，於是
+        # make sim PERCEPTION=TRUE（或 yes、on、帶尾隨空白）會靜默走 false 分支，
+        # 整條感知管線不啟動而沒有任何錯誤 —— Makefile 照樣印 perception=TRUE，
+        # 而那正是這個檔案存在的理由。要失敗就要大聲失敗。
+        use_perception = IfCondition(
+            LaunchConfiguration('use_perception')).evaluate(context)
+
         actions = []
 
-        if use_perception in TRUE_VALUES:
+        if use_perception:
             perception_share = get_package_share_directory('orca_perception')
 
             # A bare name is resolved against the pipeline's own config dir so
@@ -68,7 +73,10 @@ def generate_launch_description():
                 raise RuntimeError(
                     f'perception_config not found: {perception_config}')
 
-            perception_args = {}
+            # namespace 一定要一起傳。少了它，decision_node 會正確 remap 到新的
+            # namespace，而整條感知管線仍訂閱舊的 —— 兩邊都活著、都沒有錯誤，
+            # 只有 /orca/perception_array 永遠是空的。
+            perception_args = {'namespace': namespace}
             if perception_config:
                 perception_args['config_file'] = perception_config
             if use_viz:

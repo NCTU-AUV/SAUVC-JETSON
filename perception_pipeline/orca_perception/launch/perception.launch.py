@@ -43,11 +43,18 @@ def generate_launch_description():
             'use_viz',
             default_value='',           # empty → fall back to YAML value
             description='Override use_viz from YAML (true/false). Leave empty to use YAML value.'),
+        DeclareLaunchArgument(
+            'namespace',
+            default_value=os.environ.get('ORCA_NAMESPACE', 'orca_auv'),
+            description=('Vehicle namespace. Expands $(ns) in the YAML topic names — '
+                         'used for topics that come from the vehicle (camera, depth), '
+                         'not for the pipeline-internal /orca/... topics.')),
     ]
 
     def create_nodes(context, *args, **kwargs):
         config_file = LaunchConfiguration('config_file').perform(context)
         use_viz_override = LaunchConfiguration('use_viz').perform(context)
+        namespace = LaunchConfiguration('namespace').perform(context).strip('/')
 
         # ── Load YAML ─────────────────────────────────────────────
         with open(config_file, 'r') as f:
@@ -109,9 +116,31 @@ def generate_launch_description():
         # ── Helper: extract ros__parameters dict for a named node ──
         # We extract each node's ros__parameters sub-dict and pass it inline
         # to avoid rcl_yaml_param_parser tripping over non-standard top-level keys.
+        #
+        # `$(ns)` in any string value expands to the vehicle namespace. Only the
+        # topics that actually come from the vehicle need it — in simulation the
+        # Gazebo bridge publishes camera and depth under ORCA_NAMESPACE, so they
+        # follow it, while the /orca/... pipeline-internal topics never do. On
+        # the real robot the RealSense driver sits under a fixed /orca prefix
+        # that is unrelated to the vehicle namespace, which is why
+        # perception_params.yaml has no $(ns) at all.
+        #
+        # Writing the namespace literally made ORCA_NAMESPACE a half-working
+        # knob: decision.launch.py remapped correctly onto the new namespace
+        # while every perception node stayed subscribed to /orca_auv/..., so
+        # /orca/perception_array went permanently empty with no error anywhere
+        # and make status still looked healthy.
+        def expand(value):
+            if isinstance(value, str):
+                return value.replace('$(ns)', namespace)
+            if isinstance(value, list):
+                return [expand(item) for item in value]
+            return value
+
         def node_params(name):
             section = cfg.get(f'/{name}', cfg.get(name, {}))
-            return dict(section.get('ros__parameters', {}))
+            return {key: expand(value)
+                    for key, value in section.get('ros__parameters', {}).items()}
 
         tensor_rt_params = node_params('tensor_rt')
         yolov8_decoder_params = node_params('yolov8_decoder_node')
