@@ -2,10 +2,6 @@
 #include <algorithm>
 
 namespace {
-// Detections live in the 640x640 YOLO tensor space, so the image centre is
-// (320, 320) on both axes — 240 would be right only for a 640x480 image.
-constexpr float kImageCentreX = 320.0f;
-constexpr float kImageCentreY = 320.0f;
 constexpr float kBlindSurge = 8.0f;   // used while depth is unresolved
 constexpr float kMaxSurge = 20.0f;
 // Smallest surge that actually moves the vehicle. thruster_force_to_pwm sends
@@ -46,7 +42,14 @@ BT::NodeStatus ApproachTarget::tick() {
   ctx_->current_action = name();
   ctx_->target_label = label;
 
-  auto obj = ctx_->world_model->getObjectNearestImageCenter(label, kImageCentreX, kImageCentreY);
+  // Single source of truth for the detection image centre — see decision_node's
+  // declaration. Do not reintroduce a local constant here.
+  const float centre_x =
+      static_cast<float>(ctx_->node->get_parameter("image_center_x").as_double());
+  const float centre_y =
+      static_cast<float>(ctx_->node->get_parameter("image_center_y").as_double());
+
+  auto obj = ctx_->world_model->getObjectNearestImageCenter(label, centre_x, centre_y);
   if (!obj.has_value()) {
     lost_frames_++;
     ctx_->debug_msg = "Target lost: " + label + " (" + std::to_string(lost_frames_) + "/8)";
@@ -87,7 +90,7 @@ BT::NodeStatus ApproachTarget::tick() {
   // a positive yaw command, which is a starboard turn in this stack's
   // down-positive frame — towards the target. (Verified against the simulator:
   // positive torque.z yaws the vehicle to starboard.)
-  float error_x = kImageCentreX - obj->cx;
+  float error_x = centre_x - obj->cx;
   cmd.yaw = -0.005f * error_x; // simple P control
 
   // Forward movement (decelerate as we get closer).

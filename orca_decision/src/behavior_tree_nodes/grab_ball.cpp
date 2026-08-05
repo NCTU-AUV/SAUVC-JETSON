@@ -23,14 +23,20 @@ BT::NodeStatus GrabBall::tick() {
     if (!started_) {
         started_ = true;
         start_time_ = now;
-        // Publish hand = false (off / close / grab)
+        // hand = true: energise the electromagnet so it holds the ball.
+        //
+        // This used to publish false — the same value DropBall publishes — so
+        // at most one of the two could ever have been right, and the one that
+        // was wrong was this one: the actuator on the control side is
+        // `actuators/electromagnet/enabled`, and an electromagnet holds when
+        // energised and releases when it is not.
         if (ctx_->hand_pub) {
             std_msgs::msg::Bool msg;
-            msg.data = false;
+            msg.data = true;
             ctx_->hand_pub->publish(msg);
         }
-        ctx_->debug_msg = "GrabBall: hand off";
-        RCLCPP_INFO(ctx_->node->get_logger(), "GrabBall: hand=false published");
+        ctx_->debug_msg = "GrabBall: magnet on";
+        RCLCPP_INFO(ctx_->node->get_logger(), "GrabBall: hand=true published");
         return BT::NodeStatus::RUNNING;
     }
 

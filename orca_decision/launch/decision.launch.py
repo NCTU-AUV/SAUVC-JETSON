@@ -41,7 +41,19 @@ def generate_launch_description():
                 ('/orca/imu/data', f'/{ns}/sensors/imu'),
                 ('/orca/decision/wrench', f'/{ns}/control/wrench_sources/decision'),
                 ('/orca/decision/desired_depth', f'/{ns}/control/targets/depth_m'),
+                # Ball electromagnet. Without this remap GrabBall and DropBall
+                # published into the void — nothing anywhere subscribed to
+                # /orca/decision/hand, so both were no-ops that waited a second
+                # and reported SUCCESS. The control stack's actuator topic is
+                # actuators/electromagnet/enabled, which the STM32 firmware
+                # picks up over micro-ROS; the Web GUI publishes onto the same
+                # topic, so the two command paths now agree.
+                ('/orca/decision/hand', f'/{ns}/actuators/electromagnet/enabled'),
             ],
+            # NOTE: /orca/decision/arm (ExtendArm/RetractArm, std_msgs/Int32)
+            # still has no destination — the control stack has no arm actuator
+            # topic at all, so there is nothing to remap onto. Those two nodes
+            # remain no-ops until the arm's interface is defined.
         )
 
         return [decision_node]

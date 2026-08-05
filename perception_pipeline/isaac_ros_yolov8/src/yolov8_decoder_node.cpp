@@ -105,7 +105,14 @@ void YoloV8DecoderNode::InputCallback(const nvidia::isaac_ros::nitros::NitrosTen
   }
 
   RCLCPP_DEBUG(this->get_logger(), "Count of bboxes: %lu", bboxes.size());
-  cv::dnn::NMSBoxes(bboxes, scores, confidence_threshold_, nms_threshold_, indices, 5);
+  // The 6th argument is `eta`, the adaptive-threshold multiplier — not top_k.
+  // Passing 5 multiplied the NMS threshold by 5 after every kept box, so it
+  // ran past 1.0 almost immediately and NMS stopped suppressing anything:
+  // every object came out as a cluster of near-duplicate boxes. eta must be
+  // 1.0 (OpenCV's default: no adaptation). top_k is the 7th argument; 0 means
+  // "no limit", which is what we want.
+  cv::dnn::NMSBoxes(bboxes, scores, confidence_threshold_, nms_threshold_, indices,
+                    /*eta=*/1.0f, /*top_k=*/0);
   RCLCPP_DEBUG(this->get_logger(), "# boxes after NMS: %lu", indices.size());
 
   vision_msgs::msg::Detection2DArray final_detections_arr;

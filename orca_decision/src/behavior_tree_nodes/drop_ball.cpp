@@ -38,13 +38,15 @@ BT::NodeStatus DropBall::tick() {
             if (elapsed >= 0.3) {
                 phase_ = 1;
                 phase_start_ = now;
-                // Publish hand = true (on / open / release)
+                // hand = false: de-energise the electromagnet so the ball drops.
+                // (The comment here used to say "true" while the code published
+                // false, and GrabBall published false too.)
                 if (ctx_->hand_pub) {
                     std_msgs::msg::Bool msg;
                     msg.data = false;
                     ctx_->hand_pub->publish(msg);
                 }
-                ctx_->debug_msg = "DropBall: hand on";
+                ctx_->debug_msg = "DropBall: magnet off";
             }
             return BT::NodeStatus::RUNNING;
         }

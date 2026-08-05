@@ -35,8 +35,8 @@ BT::NodeStatus MoveAboveTarget::tick() {
     int required_stable = ctx_->node->get_parameter("move_above_stable_frames").as_int();
     double timeout_sec = ctx_->node->get_parameter("move_above_timeout_sec").as_double();
     double lp_alpha = ctx_->node->get_parameter("move_above_lowpass_alpha").as_double();
-    double center_x = ctx_->node->get_parameter("bottom_cam_center_x").as_double();
-    double center_y = ctx_->node->get_parameter("bottom_cam_center_y").as_double();
+    double center_x = ctx_->node->get_parameter("image_center_x").as_double();
+    double center_y = ctx_->node->get_parameter("image_center_y").as_double();
 
     rclcpp::Time now = ctx_->node->now();
 

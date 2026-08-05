@@ -1,11 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="3">
+  <!-- transit_depth is remapped in by each caller. It used to be hardcoded to
+       0.2 here, which silently overwrote whatever depth FinalMission had just
+       set: SetDepth is a SyncActionNode that publishes once and returns, with
+       no restore, so entering this subtree snapped the vehicle back to 0.2 m
+       and defeated both the 0.7 m and the 1.1 m transits. The bug was invisible
+       in QualificationMission because that mission also uses 0.2. -->
   <BehaviorTree ID="PassGateProcedure">
     <Sequence>
       <RetryUntilSuccessful num_attempts="30">
         <Sequence>
           <SearchTarget label="gate"/>
-          <SetDepth depth="0.2"/>
+          <SetDepth depth="{transit_depth}"/>
           <!-- ApproachTarget only ever returns SUCCESS (close enough) or
                FAILURE (target lost / depth never resolved). If it converges to
                just outside `distance` it stays RUNNING, and RetryUntilSuccessful
@@ -30,7 +36,7 @@
 
       <ReactiveFallback>
         <AvoidObstacle/>
-        <SubTree ID="PassGateProcedure"/>
+        <SubTree ID="PassGateProcedure" transit_depth="0.2"/>
       </ReactiveFallback>
 
       <!-- Turn 180 degrees relative to current yaw -->
@@ -49,20 +55,20 @@
 
       <ReactiveFallback>
         <AvoidObstacle sticky_time="1.0"/>
-        <SubTree ID="PassGateProcedure"/>
+        <SubTree ID="PassGateProcedure" transit_depth="0.7"/>
       </ReactiveFallback>
 
       <SetDepth depth="0.5"/>
-      <SubTree ID="TargetAcquisition"/>
+      <SubTree ID="TargetAcquisition" drop_pose="{drop_pose}"/>
 
       <SetCamera mode="realsense"/>
       <SetDepth depth="1.1"/>
-      <SubTree ID="PassGateProcedure"/>
+      <SubTree ID="PassGateProcedure" transit_depth="1.1"/>
 
       <SubTree ID="CommunicationTask"/>
 
       <SetDepth depth="0.5"/>
-      <SubTree ID="TargetReacquisition"/>
+      <SubTree ID="TargetReacquisition" drop_pose="{drop_pose}"/>
 
       <FinishMission/>
     </Sequence>

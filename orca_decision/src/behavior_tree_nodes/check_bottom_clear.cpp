@@ -1,6 +1,7 @@
 #include "orca_decision/behavior_tree_nodes.hpp"
 #include <algorithm>
 #include <cmath>
+#include <vector>
 
 CheckBottomClear::CheckBottomClear(const std::string& name,
                                    const BT::NodeConfiguration& config)
@@ -50,7 +51,31 @@ BT::NodeStatus CheckBottomClear::tick() {
         return BT::NodeStatus::FAILURE;
     }
 
-    const auto objects = ctx_->world_model->getObjects();
+    // "Clear" means nothing is still under us — not "the camera sees nothing
+    // anywhere". getObjects() returns every tracked object regardless of label
+    // or image position, so the previous `objects.empty()` test treated any
+    // detection at the edge of frame, of any class, as a blocker: the drum we
+    // just dropped on is still in the world model (stability_window keeps it),
+    // so the node reversed at 15.0 surge on its very first tick, every time.
+    //
+    // check_bottom_clear_center_deadband was declared and configured for
+    // exactly this and then never read. Use it: only objects within the
+    // deadband of the image centre count.
+    const double deadband =
+        ctx_->node->get_parameter("check_bottom_clear_center_deadband").as_double();
+    const double centre_x = ctx_->node->get_parameter("image_center_x").as_double();
+    const double centre_y = ctx_->node->get_parameter("image_center_y").as_double();
+
+    std::vector<TrackedObject> blocking;
+    for (const auto& obj : ctx_->world_model->getObjects()) {
+        const double dx = obj.cx - centre_x;
+        const double dy = obj.cy - centre_y;
+        if (std::hypot(dx, dy) <= deadband) {
+            blocking.push_back(obj);
+        }
+    }
+
+    const auto& objects = blocking;
     if (objects.empty()) {
         clear_frames_++;
         ctx_->wrench_adapter->setCommand(MotionCommand());
@@ -73,7 +98,8 @@ BT::NodeStatus CheckBottomClear::tick() {
 
     ctx_->wrench_adapter->setCommand(cmd);
     ctx_->debug_msg = "CheckBottomClear: backing up to clear " +
-                      std::to_string(objects.size()) + " detection(s)";
+                      std::to_string(objects.size()) +
+                      " detection(s) under the vehicle";
     return BT::NodeStatus::RUNNING;
 }
 

@@ -60,9 +60,21 @@ void DecisionNode::loadParameters() {
   this->declare_parameter("check_bottom_clear_timeout_sec", 10.0);
   this->declare_parameter("check_bottom_clear_center_deadband", 20.0);
 
-  // Bottom camera center (pixels)
-  this->declare_parameter("bottom_cam_center_x", 320.0);
-  this->declare_parameter("bottom_cam_center_y", 240.0);
+  // Detection image centre, in pixels.
+  //
+  // Detections arrive in the 640x640 YOLO tensor space (yolov8_decoder writes
+  // raw tensor coordinates and depth_perception passes them through unscaled),
+  // so the centre is (320, 320) on both axes and is the same for the front and
+  // bottom cameras — there is only one centre in this stack. The old
+  // bottom_cam_center_y of 240 was right only for a 640x480 image and put a
+  // permanent 80 px offset on every MoveAboveTarget ball drop.
+  //
+  // One parameter pair, read by every node that needs it. It used to be four
+  // separate spellings: this pair, two anonymous-namespace constants in
+  // approach_target.cpp and final_align_target.cpp, and bare literals in
+  // avoid_obstacle.cpp — so fixing 240 in one place fixed nothing elsewhere.
+  this->declare_parameter("image_center_x", 320.0);
+  this->declare_parameter("image_center_y", 320.0);
 
   // BumpFlare parameters
   this->declare_parameter("bump_flare_surge", 0.25);
