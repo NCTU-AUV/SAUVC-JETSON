@@ -36,6 +36,7 @@ private:
     std::shared_ptr<DecisionContext> ctx_;
     int stable_frames_ = 0;
     int lost_frames_ = 0;
+    int blind_frames_ = 0;
 };
 
 class FinalAlignTarget : public BT::ActionNodeBase {

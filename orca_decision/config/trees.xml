@@ -6,7 +6,15 @@
         <Sequence>
           <SearchTarget label="gate"/>
           <SetDepth depth="0.2"/>
-          <ApproachTarget label="gate" distance="3.0"/>
+          <!-- ApproachTarget only ever returns SUCCESS (close enough) or
+               FAILURE (target lost / depth never resolved). If it converges to
+               just outside `distance` it stays RUNNING, and RetryUntilSuccessful
+               only fires on FAILURE — so without a Timeout the mission hangs
+               with no diagnostic. Expiry halts the node and retries from
+               SearchTarget, which is the right recovery. -->
+          <Timeout msec="60000">
+            <ApproachTarget label="gate" distance="3.0"/>
+          </Timeout>
           <FinalAlignTarget label="gate"/>
         </Sequence>
       </RetryUntilSuccessful>
@@ -66,7 +74,9 @@
       <RetryUntilSuccessful num_attempts="60">
         <Sequence>
           <SearchTarget label="blue_drum"/>
-          <ApproachTarget label="blue_drum" distance="4.0"/>
+          <Timeout msec="60000">
+            <ApproachTarget label="blue_drum" distance="4.0"/>
+          </Timeout>
           <FinalAlignTarget label="blue_drum"/>
         </Sequence>
       </RetryUntilSuccessful>
@@ -88,7 +98,9 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_1}"/>
               </Timeout>
-              <ApproachTarget label="{flare_1}" distance="0.5"/>
+              <Timeout msec="45000">
+                <ApproachTarget label="{flare_1}" distance="0.5"/>
+              </Timeout>
               <FinalAlignTarget label="{flare_1}"/>
             </Sequence>
           </RetryUntilSuccessful>
@@ -104,7 +116,9 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_2}"/>
               </Timeout>
-              <ApproachTarget label="{flare_2}" distance="0.5"/>
+              <Timeout msec="45000">
+                <ApproachTarget label="{flare_2}" distance="0.5"/>
+              </Timeout>
               <FinalAlignTarget label="{flare_2}"/>
             </Sequence>
           </RetryUntilSuccessful>
@@ -120,7 +134,9 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_3}"/>
               </Timeout>
-              <ApproachTarget label="{flare_3}" distance="0.5"/>
+              <Timeout msec="45000">
+                <ApproachTarget label="{flare_3}" distance="0.5"/>
+              </Timeout>
               <FinalAlignTarget label="{flare_3}"/>
             </Sequence>
           </RetryUntilSuccessful>
