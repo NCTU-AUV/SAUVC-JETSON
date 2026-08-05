@@ -1,6 +1,12 @@
 #include "orca_decision/behavior_tree_nodes.hpp"
 #include <cmath>
 
+namespace {
+// Detections are in the 640x640 YOLO tensor space, so the centre is (320, 320).
+constexpr float kImageCentreX = 320.0f;
+constexpr float kImageCentreY = 320.0f;
+}  // namespace
+
 FinalAlignTarget::FinalAlignTarget(const std::string &name,
                                    const BT::NodeConfiguration &config)
     : BT::ActionNodeBase(name, config) {}
@@ -22,7 +28,7 @@ BT::NodeStatus FinalAlignTarget::tick() {
   ctx_->current_action = name();
   ctx_->target_label = label;
 
-  auto obj = ctx_->world_model->getObjectNearestImageCenter(label, 320.0f, 240.0f);
+  auto obj = ctx_->world_model->getObjectNearestImageCenter(label, kImageCentreX, kImageCentreY);
   if (!obj.has_value()) {
     aligning_ = false;
     ctx_->debug_msg = "Target lost: " + label;
@@ -32,8 +38,9 @@ BT::NodeStatus FinalAlignTarget::tick() {
 
   ctx_->debug_msg = "Aligning to: " + label;
 
-  // Yaw error based on cx (assuming 640 width center is 320)
-  float error_x = 320.0f - obj->cx;
+  // Yaw error from the box centre in the 640-wide tensor. Target right of
+  // centre -> error_x < 0 -> positive yaw -> starboard turn (down-positive frame).
+  float error_x = kImageCentreX - obj->cx;
 
   // Check if within threshold
   if (std::abs(error_x) < 20.0f) { // pixel threshold
