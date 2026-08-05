@@ -125,7 +125,7 @@ This launches the full perception stack: camera selector → DNN encoder → Ten
 ### Terminal 2 — Decision Node
 
 ```bash
-ros2 launch orca_decision decision.launch.py
+ros2 launch orca_decision autonomy.launch.py
 ```
 
 This starts the BehaviorTree-based decision node, subscribing to perception output and IMU.

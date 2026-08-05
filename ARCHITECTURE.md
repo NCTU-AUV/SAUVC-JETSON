@@ -84,10 +84,10 @@ flowchart LR
 
     DP -->|"/orca/perception_array\nPerceptionArray"| OUT["→ 決策層"]
 
-    CAMMODE["/orca/camera_mode\nString (來自決策層)"] -.訂閱.-> CS
+    CAMMODE["/orca/decision/camera_mode\nString (來自決策層)"] -.訂閱.-> CS
 ```
 
-`camera_selector` 訂閱的 `/orca/camera_mode` 是由決策層回饋控制（見第 4 節），代表決策層可以主動要求切換相機來源，形成一個小閉環。
+`camera_selector` 訂閱的 `/orca/decision/camera_mode` 是由決策層回饋控制（見第 4 節），代表決策層可以主動要求切換相機來源，形成一個小閉環。
 
 ### 3.3 逐 package 說明
 
@@ -98,7 +98,7 @@ flowchart LR
 |---|---|---|---|
 | Sub | `/orca/color/image_raw`, `/orca/color/camera_info` | `sensor_msgs/Image`, `CameraInfo` | RealSense |
 | Sub | `/orca/usb_cam/image_raw`, `/orca/usb_cam/camera_info` | `sensor_msgs/Image`, `CameraInfo` | USB 底部相機 |
-| Sub | `/orca/camera_mode` | `std_msgs/String` | reliable + transient_local QoS |
+| Sub | `/orca/decision/camera_mode` | `std_msgs/String` | reliable + transient_local QoS |
 | Pub | `/orca/selected/image_raw`, `/orca/selected/camera_info` | `sensor_msgs/Image`, `CameraInfo` | 依 mode 轉發 |
 
 邏輯很單純：依目前 mode 把對應來源的 image/camera_info 轉發到 `selected` topic，並對齊時間戳（timestamp）。
@@ -118,7 +118,7 @@ flowchart LR
 | Sub | `/orca/aligned_depth_to_color/image_raw` | `sensor_msgs/Image`（best-effort QoS） |
 | Sub | `/orca/color/camera_info` | `sensor_msgs/CameraInfo` |
 | Sub | `/detections_output` | `vision_msgs/Detection2DArray`（reliable QoS） |
-| Sub | `/orca/camera_mode` | `std_msgs/String`（transient_local） |
+| Sub | `/orca/decision/camera_mode` | `std_msgs/String`（transient_local） |
 | Pub | `/orca/perception_array` | `orca_interface/PerceptionArray` |
 
 兩種模式：
@@ -244,7 +244,11 @@ QualificationMission
 └─ 潛水 → 過閘門 → 迴轉 → 回程 → 浮出
 ```
 
-啟動入口：`ros2 launch orca_decision decision.launch.py`（載入 `config/decision_params.yaml`，並做 wrench／depth 的 topic remap）。
+啟動入口：`ros2 launch orca_decision autonomy.launch.py` —— 它同時拉起感知管線與決策節點。
+
+**不要只跑 `decision.launch.py`。** 那個檔案只有行為樹，沒有任何節點發布 `/orca/perception_array`，
+世界模型會永遠是空的：所有搜尋／接近節點跑到逾時，而 `ros2 node list` 與 `make status` 全都顯示健康。
+它保留下來只是給「單獨除錯行為樹」用的（`autonomy.launch.py use_perception:=false` 是同樣的效果）。
 
 ---
 

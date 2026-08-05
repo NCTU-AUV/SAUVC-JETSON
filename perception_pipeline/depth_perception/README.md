@@ -35,7 +35,7 @@ In both modes the **multi-frame stability tracker** runs per-label and sets `is_
 | `/orca/aligned_depth_to_color/image_raw` | `sensor_msgs/Image` |
 | `/orca/color/camera_info` | `sensor_msgs/CameraInfo` |
 | `/detections_output` | `vision_msgs/Detection2DArray` |
-| `/orca/camera_mode` | `std_msgs/String` |
+| `/orca/decision/camera_mode` | `std_msgs/String` |
 
 ## Published Topics
 

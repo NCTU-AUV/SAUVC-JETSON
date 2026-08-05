@@ -62,15 +62,28 @@ The node subscribes to perception output (`orca_interface/PerceptionArray`) and 
 ## Launch
 
 ```bash
-ros2 launch orca_decision decision.launch.py
+ros2 launch orca_decision autonomy.launch.py
 ```
 
-The launch file automatically remaps:
+`autonomy.launch.py` starts the perception pipeline alongside the decision node.
+`decision.launch.py` on its own gives you the BehaviorTree with nothing publishing
+`/orca/perception_array` — the world model stays empty, every search/approach node
+runs to its timeout, and the node graph still looks healthy. Use it only to debug
+the tree in isolation.
 
-| Internal Topic | Remapped To |
-|----------------|-------------|
-| `/orca/decision/wrench` | `/orca_auv/control/wrench_sources/decision` |
-| `/orca/decision/desired_depth` | `/orca_auv/control/targets/depth_m` |
+The launch file remaps everything that crosses into the control stack onto the
+vehicle namespace (`$ns` below, from the `namespace` argument, defaulting to
+`ORCA_NAMESPACE`):
+
+| Internal Topic | Remapped To | Why |
+|----------------|-------------|-----|
+| `/orca/imu/data` | `/$ns/sensors/imu` | Attitude source. Without it the world model never leaves its construction pose. |
+| `/orca/decision/wrench` | `/$ns/control/wrench_sources/decision` | Motion commands onto the wrench bus. |
+| `/orca/decision/desired_depth` | `/$ns/control/targets/depth_m` | Depth setpoint for the control stack's PID. |
+| `/orca/decision/hand` | `/$ns/actuators/electromagnet/enabled` | Ball electromagnet, driven by `GrabBall`/`DropBall`. |
+
+`/orca/decision/arm` (`ExtendArm`/`RetractArm`) is **not** remapped — the control
+stack has no arm actuator topic, so those two nodes are still no-ops.
 
 ### Start a Mission
 

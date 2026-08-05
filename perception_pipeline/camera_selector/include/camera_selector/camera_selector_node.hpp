@@ -21,7 +21,7 @@ public:
   explicit CameraSelectorNode(const rclcpp::NodeOptions & options);
 
 private:
-  /// Callback for /orca/camera_mode
+  /// Callback for /orca/decision/camera_mode
   void mode_callback(const std_msgs::msg::String::SharedPtr msg);
 
   /// Callback for /orca/color/image_raw
