@@ -366,21 +366,33 @@ class DepthPerceptionNode(Node):
         Gate-specific depth: sample columns, check left-right symmetry.
         Returns (z_metres, valid_bool).
         """
+        # gate_col_min_points is an absolute pixel count, but a column can only
+        # ever hold as many pixels as the box is tall. A distant gate 22 px high
+        # could therefore never satisfy a threshold of 30, so every column was
+        # discarded and the gate was rejected at any range where it still looked
+        # small — which is exactly the range ApproachTarget needs it at.
+        rows = max(0, y2 - y1)
+        min_col_pts = max(3, min(self._gate_col_min_pts, rows // 2))
+
         column_depths = []
         for u in range(x1, x2, self._gate_col_step):
             col = self.depth_img[y1:y2, u]
             col = col[np.isfinite(col)]
             col = col[col > self._depth_min_range]
             col = col[col < 30]
-            if len(col) >= self._gate_col_min_pts:
+            if len(col) >= min_col_pts:
                 column_depths.append((u, float(np.percentile(col, 10))))
 
         if len(column_depths) < self._gate_col_min_samples:
             # self.get_logger().info(f'Gate rejected: only {len(column_depths)} valid columns (need {self._gate_col_min_samples})')
             return float('nan'), False
 
-        left = min(column_depths[:15], key=lambda x: x[1])
-        right = min(column_depths[len(column_depths)-15:len(column_depths)], key=lambda x: x[1])
+        # Take the nearest column in the outer third of each side. A fixed 15
+        # made the two slices overlap — and become identical for 15 columns or
+        # fewer — so width_pix collapsed to 0 and the gate was always rejected.
+        edge = max(1, len(column_depths) // 3)
+        left = min(column_depths[:edge], key=lambda x: x[1])
+        right = min(column_depths[-edge:], key=lambda x: x[1])
         # self.get_logger().info(f'Left: {left}, Right: {right}')
 
         width_pix  = right[0] - left[0]
