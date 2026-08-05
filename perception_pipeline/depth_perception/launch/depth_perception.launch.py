@@ -1,8 +1,18 @@
 """Standalone depth_perception, for debugging it apart from the full pipeline.
 
-The nodes run on their own declared defaults unless params_file is given. Those
-defaults target the real robot; for the simulator pass orca_perception's
-simulation_params.yaml, or use orca_perception/perception.launch.py instead.
+The nodes run on their own declared defaults unless params_file is given, and
+those defaults target the real robot.
+
+Do NOT pass orca_perception's simulation_params.yaml or perception_params.yaml
+here. Neither is a valid rcl parameter file: both carry non-node top-level keys
+(`launch:`, `model_profile:`, `model_profiles:`, `class_names:`,
+`dnn_image_encoder:`), and rcl_yaml_param_parser rejects the whole file with
+"Cannot have a value before ros__parameters at line 8", so both nodes die inside
+rclpy.init(). params_file here only accepts a plain ros__parameters file.
+
+For the simulator use orca_perception/perception.launch.py instead — it extracts
+each node's ros__parameters sub-dict and passes it inline, which is what makes
+those YAMLs usable.
 """
 
 from launch import LaunchDescription
