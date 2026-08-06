@@ -1,0 +1,1134 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>架構：感知與決策堆疊 · SAUVC-JETSON</title>
+<style>
+/* ─────────────────────────────  design tokens  ───────────────────────────── */
+:root{
+  color-scheme: light dark;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans TC", "PingFang TC",
+               "Microsoft JhengHei", Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono",
+               "Noto Sans Mono CJK TC", monospace;
+
+  --bg:        #fafafc;
+  --surface:   #ffffff;
+  --surface-2: #f2f3f7;
+  --surface-3: #e9ebf1;
+  --border:    #e0e3ec;
+  --border-2:  #cbd0dd;
+  --fg:        #171a21;
+  --fg-dim:    #5b6274;
+  --fg-faint:  #868da0;
+  --accent:    #3d5afe;
+  --accent-bg: #eceffe;
+
+  --sense:     #0e7490;  --sense-bg:   #e6f7fb;
+  --perceive:  #6d28d9;  --perceive-bg:#f1ecfe;
+  --decide:    #b45309;  --decide-bg:  #fdf3e3;
+  --control:   #047857;  --control-bg: #e5f7f0;
+  --danger:    #c81e3a;  --danger-bg:  #fdecef;
+  --neutral:   #52596b;  --neutral-bg: #f0f1f5;
+
+  --edge:      #8b93a7;
+  --shadow:    0 1px 2px rgba(16,20,32,.06), 0 4px 14px rgba(16,20,32,.05);
+}
+:root[data-theme="dark"], html:not([data-theme="light"]) {}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:        #0d0f14;
+    --surface:   #141821;
+    --surface-2: #1a1f2a;
+    --surface-3: #222835;
+    --border:    #262d3b;
+    --border-2:  #36405280;
+    --fg:        #e5e8f0;
+    --fg-dim:    #98a1b5;
+    --fg-faint:  #6d7688;
+    --accent:    #8098ff;
+    --accent-bg: #1a2140;
+
+    --sense:     #38d3ee;  --sense-bg:   #0d2a33;
+    --perceive:  #b39cfb;  --perceive-bg:#241c3e;
+    --decide:    #fbbf3c;  --decide-bg:  #33270d;
+    --control:   #3ddba3;  --control-bg: #0c2c22;
+    --danger:    #ff8095;  --danger-bg:  #3a1620;
+    --neutral:   #9aa3b7;  --neutral-bg: #1c212c;
+
+    --edge:      #6b748a;
+    --shadow:    0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.28);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0d0f14; --surface:#141821; --surface-2:#1a1f2a; --surface-3:#222835;
+  --border:#262d3b; --border-2:#364052; --fg:#e5e8f0; --fg-dim:#98a1b5; --fg-faint:#6d7688;
+  --accent:#8098ff; --accent-bg:#1a2140;
+  --sense:#38d3ee; --sense-bg:#0d2a33; --perceive:#b39cfb; --perceive-bg:#241c3e;
+  --decide:#fbbf3c; --decide-bg:#33270d; --control:#3ddba3; --control-bg:#0c2c22;
+  --danger:#ff8095; --danger-bg:#3a1620; --neutral:#9aa3b7; --neutral-bg:#1c212c;
+  --edge:#6b748a; --shadow:0 1px 2px rgba(0,0,0,.4), 0 6px 20px rgba(0,0,0,.28);
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+html{ scroll-behavior:smooth; scroll-padding-top:80px; }
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--font-sans); font-size:15.5px; line-height:1.75;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+}
+
+/* ─────────────────────────────  layout  ───────────────────────────── */
+.topbar{
+  position:sticky; top:0; z-index:50; display:flex; align-items:center; gap:14px;
+  padding:0 20px; height:56px;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:saturate(180%) blur(12px);
+  border-bottom:1px solid var(--border);
+}
+.topbar .brand{ font-weight:700; font-size:14px; letter-spacing:.01em; }
+.topbar .brand span{ color:var(--fg-faint); font-weight:500; }
+.topbar .sp{ flex:1; }
+.btn{
+  display:inline-flex; align-items:center; gap:6px; height:32px; padding:0 11px;
+  border:1px solid var(--border); border-radius:8px; background:var(--surface);
+  color:var(--fg-dim); font:inherit; font-size:12.5px; cursor:pointer;
+  text-decoration:none; white-space:nowrap;
+}
+.btn:hover{ border-color:var(--border-2); color:var(--fg); }
+#navtoggle{ display:none; }
+
+.layout{ display:grid; grid-template-columns:270px minmax(0,1fr); gap:0; }
+.sidebar{
+  position:sticky; top:56px; align-self:start; height:calc(100vh - 56px);
+  overflow-y:auto; overscroll-behavior:contain;
+  padding:22px 12px 60px 20px; border-right:1px solid var(--border);
+}
+.sidebar .toc-h{
+  font-size:11px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--fg-faint); padding:0 10px; margin:0 0 10px;
+}
+.sidebar a{
+  display:block; padding:5px 10px; border-radius:7px; text-decoration:none;
+  color:var(--fg-dim); font-size:13.5px; line-height:1.45; border-left:2px solid transparent;
+}
+.sidebar a:hover{ background:var(--surface-2); color:var(--fg); }
+.sidebar a.sub{ padding-left:24px; font-size:12.5px; color:var(--fg-faint); }
+.sidebar a.active{ color:var(--accent); background:var(--accent-bg); font-weight:600; }
+
+main{ min-width:0; padding:40px 44px 120px; max-width:1180px; }
+
+/* ─────────────────────────────  hero  ───────────────────────────── */
+.hero{ margin-bottom:44px; }
+.hero .kicker{
+  font-size:11.5px; font-weight:700; letter-spacing:.14em; text-transform:uppercase;
+  color:var(--perceive); margin-bottom:10px;
+}
+.hero h1{ font-size:38px; line-height:1.2; margin:0 0 14px; letter-spacing:-.02em; }
+.hero .lede{ font-size:17px; color:var(--fg-dim); margin:0 0 20px; max-width:74ch; }
+.chips{ display:flex; flex-wrap:wrap; gap:7px; }
+.chip{
+  display:inline-flex; align-items:center; gap:5px; padding:3px 10px; border-radius:999px;
+  background:var(--surface-2); border:1px solid var(--border);
+  font-size:11.5px; font-family:var(--font-mono); color:var(--fg-dim);
+}
+.chip b{ color:var(--fg); font-weight:600; }
+
+/* ─────────────────────────────  typography  ───────────────────────────── */
+h2{
+  font-size:25px; letter-spacing:-.01em; margin:62px 0 6px; padding-top:16px;
+  border-top:1px solid var(--border); scroll-margin-top:76px;
+}
+h2 .num{ color:var(--fg-faint); font-weight:500; margin-right:10px; font-variant-numeric:tabular-nums; }
+h3{ font-size:18px; margin:34px 0 4px; letter-spacing:-.005em; scroll-margin-top:76px; }
+h4{ font-size:15px; margin:24px 0 2px; color:var(--fg); }
+p{ margin:12px 0; max-width:80ch; }
+a{ color:var(--accent); text-decoration-thickness:1px; text-underline-offset:2px; }
+strong{ font-weight:650; }
+ul,ol{ max-width:80ch; padding-left:22px; }
+li{ margin:6px 0; }
+hr{ border:0; border-top:1px solid var(--border); margin:40px 0; }
+
+code{
+  font-family:var(--font-mono); font-size:.855em; padding:1.5px 5px; border-radius:5px;
+  background:var(--surface-2); border:1px solid var(--border); color:var(--fg);
+  word-break:break-word;
+}
+a code{ color:inherit; }
+code.t{ cursor:copy; background:var(--accent-bg); border-color:transparent; color:var(--accent); }
+code.t:hover{ box-shadow:inset 0 0 0 1px currentColor; }
+code.t.copied::after{ content:" ✓"; }
+pre{
+  background:var(--surface); border:1px solid var(--border); border-radius:10px;
+  padding:14px 16px; overflow-x:auto; font-size:13px; line-height:1.65; margin:16px 0;
+}
+pre code{ background:none; border:0; padding:0; font-size:inherit; }
+
+/* ─────────────────────────────  tables  ───────────────────────────── */
+.tbl-wrap{ overflow-x:auto; margin:18px 0; border:1px solid var(--border); border-radius:11px; background:var(--surface); }
+table{ border-collapse:collapse; width:100%; font-size:14px; }
+th,td{ text-align:left; padding:9px 14px; border-bottom:1px solid var(--border); vertical-align:top; }
+thead th{
+  background:var(--surface-2); font-size:11.5px; font-weight:700; letter-spacing:.06em;
+  text-transform:uppercase; color:var(--fg-dim); white-space:nowrap;
+}
+tbody tr:last-child td{ border-bottom:0; }
+tbody tr:hover{ background:var(--surface-2); }
+td code, th code{ font-size:12.5px; }
+table.io td:first-child{ white-space:nowrap; font-weight:600; font-size:12.5px; color:var(--fg-dim); }
+
+/* ─────────────────────────────  callouts  ───────────────────────────── */
+.callout{
+  margin:20px 0; padding:14px 18px 14px 16px; border-radius:10px;
+  border:1px solid var(--border); border-left:3px solid var(--neutral);
+  background:var(--surface); box-shadow:var(--shadow);
+}
+.callout > :first-child{ margin-top:0; } .callout > :last-child{ margin-bottom:0; }
+.callout .ct{
+  display:flex; align-items:center; gap:7px; font-size:11.5px; font-weight:700;
+  letter-spacing:.08em; text-transform:uppercase; margin-bottom:6px; color:var(--neutral);
+}
+.callout.danger{ border-left-color:var(--danger); background:var(--danger-bg); }
+.callout.danger .ct{ color:var(--danger); }
+.callout.warn{ border-left-color:var(--decide); background:var(--decide-bg); }
+.callout.warn .ct{ color:var(--decide); }
+.callout.note{ border-left-color:var(--accent); background:var(--accent-bg); }
+.callout.note .ct{ color:var(--accent); }
+.callout.ok{ border-left-color:var(--control); background:var(--control-bg); }
+.callout.ok .ct{ color:var(--control); }
+
+/* ─────────────────────────────  cards / grid  ───────────────────────────── */
+.grid{ display:grid; gap:14px; margin:18px 0; }
+.grid.c2{ grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+.grid.c3{ grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); }
+.card{
+  background:var(--surface); border:1px solid var(--border); border-radius:11px;
+  padding:14px 16px; box-shadow:var(--shadow);
+}
+.card h4{ margin:0 0 4px; font-size:14px; }
+.card p{ margin:4px 0 0; font-size:13.5px; color:var(--fg-dim); }
+.card .tag{
+  display:inline-block; font-family:var(--font-mono); font-size:10.5px; padding:1px 7px;
+  border-radius:999px; margin-bottom:7px; letter-spacing:.02em;
+}
+.tag.sense{ background:var(--sense-bg); color:var(--sense); }
+.tag.perceive{ background:var(--perceive-bg); color:var(--perceive); }
+.tag.decide{ background:var(--decide-bg); color:var(--decide); }
+.tag.control{ background:var(--control-bg); color:var(--control); }
+.tag.danger{ background:var(--danger-bg); color:var(--danger); }
+.tag.neutral{ background:var(--neutral-bg); color:var(--neutral); }
+
+/* ─────────────────────────────  figures / svg  ───────────────────────────── */
+figure{
+  margin:26px 0; padding:18px 18px 12px; background:var(--surface);
+  border:1px solid var(--border); border-radius:13px; box-shadow:var(--shadow); overflow-x:auto;
+}
+figure svg{ display:block; width:100%; height:auto; min-width:640px; font-family:var(--font-sans); }
+figcaption{
+  margin-top:12px; padding-top:10px; border-top:1px dashed var(--border);
+  font-size:12.5px; color:var(--fg-faint);
+}
+figcaption b{ color:var(--fg-dim); font-weight:650; }
+.legend{ display:flex; flex-wrap:wrap; gap:16px; margin-top:10px; font-size:12px; color:var(--fg-faint); }
+.legend i{ display:inline-flex; align-items:center; gap:6px; font-style:normal; }
+.legend .swatch{ width:22px; height:0; border-top:2px solid var(--edge); }
+.legend .swatch.d{ border-top-style:dashed; }
+
+svg .band{ fill:var(--surface-2); stroke:var(--border); stroke-dasharray:5 5; }
+svg .band-l{ font-size:11.5px; font-weight:700; letter-spacing:.1em; }
+svg .box{ fill:var(--surface); stroke:var(--border-2); stroke-width:1.25; }
+svg .t1{ font-size:12.5px; font-weight:620; fill:var(--fg); }
+svg .t2{ font-size:10.5px; fill:var(--fg-dim); }
+svg .t3{ font-size:9.5px; fill:var(--fg-faint); }
+svg .mono{ font-family:var(--font-mono); }
+svg .edge{ fill:none; stroke:var(--edge); stroke-width:1.5; stroke-linejoin:round; stroke-linecap:round; }
+svg .edge.dash{ stroke-dasharray:5 4; }
+svg .edge.thin{ stroke-width:1.15; }
+svg .ah{ fill:var(--edge); }
+svg .ahp{ fill:var(--perceive); }  svg .ahd{ fill:var(--decide); }
+svg .ahc{ fill:var(--control); }   svg .ahs{ fill:var(--sense); }
+
+svg .b-sense{ fill:var(--sense-bg); stroke:var(--sense); }
+svg .b-perceive{ fill:var(--perceive-bg); stroke:var(--perceive); }
+svg .b-decide{ fill:var(--decide-bg); stroke:var(--decide); }
+svg .b-control{ fill:var(--control-bg); stroke:var(--control); }
+svg .b-danger{ fill:var(--danger-bg); stroke:var(--danger); }
+svg .l-sense{ fill:var(--sense); } svg .l-perceive{ fill:var(--perceive); }
+svg .l-decide{ fill:var(--decide); } svg .l-control{ fill:var(--control); }
+svg .l-danger{ fill:var(--danger); } svg .l-neutral{ fill:var(--neutral); }
+svg .dashbox{ fill:none; stroke:var(--perceive); stroke-dasharray:5 4; stroke-width:1.25; opacity:.8; }
+
+/* ─────────────────────────────  misc  ───────────────────────────── */
+.anchor{ opacity:0; margin-left:8px; font-size:.62em; color:var(--fg-faint); text-decoration:none; }
+h2:hover .anchor, h3:hover .anchor{ opacity:1; }
+.tree{
+  font-family:var(--font-mono); font-size:13px; line-height:1.85; background:var(--surface);
+  border:1px solid var(--border); border-radius:11px; padding:16px 18px; margin:18px 0; overflow-x:auto;
+}
+.tree .c{ color:var(--fg-faint); }
+.tree .d{ color:var(--decide); font-weight:600; }
+.issues{ counter-reset:iss; }
+.issue{
+  display:flex; gap:14px; padding:14px 16px; margin:12px 0; background:var(--surface);
+  border:1px solid var(--border); border-radius:11px; box-shadow:var(--shadow);
+}
+.issue .n{
+  flex:0 0 26px; height:26px; border-radius:8px; background:var(--danger-bg); color:var(--danger);
+  font-size:12.5px; font-weight:700; display:grid; place-items:center;
+}
+.issue .body{ min-width:0; } .issue .body > :first-child{ margin-top:0; }
+.issue .body > :last-child{ margin-bottom:0; }
+.issue.fixed .n{ background:var(--control-bg); color:var(--control); }
+
+@media (max-width:1080px){
+  .layout{ grid-template-columns:1fr; }
+  #navtoggle{ display:inline-flex; }
+  .sidebar{
+    position:fixed; inset:56px auto 0 0; width:280px; z-index:40; background:var(--bg);
+    transform:translateX(-102%); transition:transform .22s ease; box-shadow:var(--shadow);
+  }
+  .sidebar.open{ transform:none; }
+  main{ padding:32px 22px 100px; }
+  .hero h1{ font-size:30px; }
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <marker id="a" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ah"/></marker>
+  <marker id="ap" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahp"/></marker>
+  <marker id="ad" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahd"/></marker>
+  <marker id="ac" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahc"/></marker>
+  <marker id="as" viewBox="0 0 10 10" refX="9.2" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" class="ahs"/></marker>
+</defs></svg>
+
+<header class="topbar">
+  <button class="btn" id="navtoggle" aria-label="目錄">☰</button>
+  <div class="brand">SAUVC-JETSON <span>/ ARCHITECTURE</span></div>
+  <div class="sp"></div>
+  <a class="btn" href="README.md">README</a>
+  <a class="btn" href="../SAUVC-RPI/docs/ARCHITECTURE.html">控制堆疊架構 →</a>
+  <button class="btn" id="theme" title="切換主題">◐</button>
+</header>
+
+<div class="layout">
+<aside class="sidebar" id="sidebar">
+  <p class="toc-h">目錄</p>
+  <nav id="toc">
+    <a href="#s1">1 · 分層與交界</a>
+    <a href="#s2">2 · 感知層</a>
+    <a href="#s2-1" class="sub">2.1 輸入話題</a>
+    <a href="#s2-2" class="sub">2.2 逐 package</a>
+    <a href="#s3">3 · 決策層</a>
+    <a href="#s3-1" class="sub">3.1 資料流</a>
+    <a href="#s3-2" class="sub">3.2 跨堆疊 remap</a>
+    <a href="#s3-3" class="sub">3.3 核心元件</a>
+    <a href="#s3-4" class="sub">3.4 BT 節點與任務樹</a>
+    <a href="#s4">4 · 訊息介面</a>
+    <a href="#s5">5 · 設定與模型</a>
+    <a href="#s6">6 · mavros_config</a>
+    <a href="#s7">7 · legacy/</a>
+    <a href="#s8">8 · utils/</a>
+    <a href="#s9">9 · 已知問題</a>
+  </nav>
+</aside>
+
+<main>
+
+<div class="hero">
+  <div class="kicker">感知 · 決策堆疊</div>
+  <h1>架構：感知與決策堆疊</h1>
+  <p class="lede">
+    SAUVC-JETSON 是跑在 <b>Jetson Orin NX + Isaac ROS 3.2</b> 上的自主系統：
+    相機輸入 → 物件偵測 → 深度估計 → BehaviorTree 任務執行 → wrench 指令。
+  </p>
+  <div class="chips">
+    <span class="chip"><b>Jetson Orin NX</b></span>
+    <span class="chip"><b>Isaac ROS</b> 3.2</span>
+    <span class="chip"><b>ROS 2</b> Humble</span>
+    <span class="chip"><b>BehaviorTree.CPP</b> v3</span>
+    <span class="chip"><b>TensorRT</b> YOLOv8</span>
+  </div>
+</div>
+
+<div class="callout note">
+  <div class="ct">閱讀前提</div>
+  <p>安裝與啟動見 <a href="README.md">README.md</a>；本文件說明系統<b>怎麼運作</b>。
+  假設讀者具備 ROS 2 基礎（node / topic / QoS / composable node / launch）。</p>
+</div>
+
+<!-- ══════════════════════════════ 1 ══════════════════════════════ -->
+<h2 id="s1"><span class="num">01</span>分層與交界<a class="anchor" href="#s1">#</a></h2>
+
+<figure>
+<svg viewBox="0 0 1120 330" role="img" aria-label="四層總覽：感測、感知、決策、控制">
+  <!-- bands -->
+  <rect class="band" x="8"   y="8" width="212" height="304" rx="10"/>
+  <rect class="band" x="236" y="8" width="444" height="304" rx="10"/>
+  <rect class="band" x="696" y="8" width="176" height="304" rx="10"/>
+  <rect class="band" x="888" y="8" width="224" height="304" rx="10"/>
+  <text class="band-l l-sense"    x="24"  y="30">感測 SENSING</text>
+  <text class="band-l l-perceive" x="252" y="30">感知 PERCEPTION</text>
+  <text class="band-l l-decide"   x="712" y="30">決策 DECISION</text>
+  <text class="band-l l-control"  x="904" y="30">控制 CONTROL</text>
+
+  <!-- sensing boxes -->
+  <rect class="box b-sense" x="24" y="56" width="180" height="50" rx="8"/>
+  <text class="t1" x="114" y="76" text-anchor="middle">RealSense D435</text>
+  <text class="t2" x="114" y="93" text-anchor="middle">color + depth</text>
+  <rect class="box b-sense" x="24" y="122" width="180" height="38" rx="8"/>
+  <text class="t1" x="114" y="141" text-anchor="middle" dominant-baseline="middle">底部 USB 相機</text>
+  <rect class="box b-sense" x="24" y="176" width="180" height="38" rx="8"/>
+  <text class="t1" x="114" y="195" text-anchor="middle" dominant-baseline="middle">控制堆疊 IMU</text>
+
+  <!-- perception boxes -->
+  <rect class="box b-perceive" x="250" y="64" width="132" height="52" rx="8"/>
+  <text class="t1 mono" x="316" y="83" text-anchor="middle" style="font-size:11.5px">camera_selector</text>
+  <text class="t3" x="316" y="100" text-anchor="middle">C++ · composable</text>
+  <rect class="box b-perceive" x="400" y="64" width="124" height="52" rx="8"/>
+  <text class="t1" x="462" y="83" text-anchor="middle">YOLOv8</text>
+  <text class="t3" x="462" y="100" text-anchor="middle">TensorRT</text>
+  <rect class="box b-perceive" x="542" y="64" width="130" height="52" rx="8"/>
+  <text class="t1 mono" x="607" y="83" text-anchor="middle" style="font-size:11.5px">depth_perception</text>
+  <text class="t3" x="607" y="100" text-anchor="middle">Python · 3D 定位</text>
+  <text class="t3" x="252" y="300">前三者同一個 composable node container · NITROS 零拷貝</text>
+
+  <!-- decision -->
+  <rect class="box b-decide" x="708" y="64" width="152" height="52" rx="8"/>
+  <text class="t1 mono" x="784" y="83" text-anchor="middle" style="font-size:11.5px">decision_node</text>
+  <text class="t3" x="784" y="100" text-anchor="middle">BehaviorTree.CPP v3</text>
+  <text class="t3" x="712" y="300">10 Hz tick · 50 Hz 輸出</text>
+
+  <!-- control -->
+  <rect class="box b-control" x="896" y="48" width="210" height="92" rx="8"/>
+  <text class="t1" x="1001" y="68" text-anchor="middle">SAUVC-RPI 控制堆疊</text>
+  <text class="t3 mono" x="908" y="88">control/wrench_sources/decision</text>
+  <text class="t3 mono" x="908" y="105">control/targets/depth_m</text>
+  <text class="t3 mono" x="908" y="122">actuators/electromagnet/enabled</text>
+  <text class="t3" x="904" y="300">不在此 repo · 交界只有三個 topic</text>
+
+  <!-- edges -->
+  <path class="edge" d="M204,75 L227,75 L227,90 L244,90" marker-end="url(#a)"/>
+  <path class="edge" d="M204,141 L227,141 L227,90 L244,90" marker-end="url(#a)"/>
+  <path class="edge dash" d="M204,92 L228,92 L228,252 L607,252 L607,122" marker-end="url(#a)"/>
+  <text class="edge-label t3" x="300" y="245">depth（僅 realsense 模式）</text>
+  <path class="edge" d="M204,195 L212,195 L212,286 L784,286 L784,122" marker-end="url(#a)"/>
+  <text class="t3 mono" x="420" y="279">/orca/imu/data → WorldModel</text>
+
+  <path class="edge" d="M382,90 L394,90" marker-end="url(#a)"/>
+  <path class="edge" d="M524,90 L536,90" marker-end="url(#a)"/>
+  <path class="edge" d="M672,90 L702,90" marker-end="url(#a)"/>
+  <path class="edge" d="M860,90 L890,90" marker-end="url(#a)"/>
+  <text class="t3 mono" x="388" y="132" text-anchor="middle">selected/image_raw</text>
+  <text class="t3 mono" x="533" y="132" text-anchor="middle">Detection2DArray</text>
+  <text class="t3 mono l-decide" x="688" y="132" text-anchor="middle">/orca/perception_array</text>
+  <text class="t3 mono l-control" x="890" y="134" text-anchor="end">Wrench @ 50 Hz</text>
+</svg>
+<figcaption><b>四層總覽。</b>感測與控制在此 repo 之外；本 repo 只負責中間兩層。
+IMU 實際上不進感知管線，而是直接餵給決策層的 WorldModel。</figcaption>
+</figure>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>層</th><th>package</th><th>角色</th></tr></thead>
+<tbody>
+<tr><td><span class="tag perceive">感知</span></td>
+    <td><code>camera_selector</code>、<code>isaac_ros_yolov8</code>、<code>depth_perception</code>、<code>orca_perception</code></td>
+    <td>影像 → 2D 偵測 → 3D 定位</td></tr>
+<tr><td><span class="tag decide">決策</span></td>
+    <td><code>orca_decision</code></td>
+    <td>BehaviorTree 任務執行、輸出控制指令</td></tr>
+<tr><td><span class="tag neutral">介面</span></td>
+    <td><code>orca_interface</code></td>
+    <td>兩層共用的自訂訊息</td></tr>
+</tbody>
+</table>
+</div>
+
+<p><b>不在此 repo</b>：推力分配與馬達控制，在 <a href="../SAUVC-RPI/docs/ARCHITECTURE.html">SAUVC-RPI</a> 的控制堆疊。
+交界只有三個 topic（見 <a href="#s3-2">§3.2</a> 的 remap 表）。</p>
+
+<h3 id="s1-ns">Namespace<a class="anchor" href="#s1-ns">#</a></h3>
+<p>決策層與感知層都由 <code>namespace</code> 參數推導，預設讀 <code>ORCA_NAMESPACE</code>（super-repo 的 <code>.env</code>）：</p>
+<ul>
+  <li><code>decision.launch.py</code> 以它組出 remap 目標</li>
+  <li><code>perception.launch.py</code> 展開 YAML 裡的 <code>$(ns)</code></li>
+</ul>
+
+<div class="callout warn">
+  <div class="ct">只有「來自載具」的話題跟著 namespace 走</div>
+  <p>管線內部的 <code>/orca/...</code> 不跟；實機 RealSense driver 掛在固定的 <code>/orca</code> 前綴，
+  也與載具 namespace 無關 —— 所以 <code>perception_params.yaml</code> 一個 <code>$(ns)</code> 都沒有，
+  <code>simulation_params.yaml</code> 有六個。</p>
+</div>
+
+<!-- ══════════════════════════════ 2 ══════════════════════════════ -->
+<h2 id="s2"><span class="num">02</span>感知層<a class="anchor" href="#s2">#</a></h2>
+
+<p>影像編碼、TensorRT 推論、YOLOv8 解碼三步共用同一塊 GPU 記憶體，放進同一個
+composable node container（<code>perception_container</code>），走 NITROS 零拷貝傳張量。</p>
+
+<figure>
+<svg viewBox="0 0 1120 400" role="img" aria-label="感知管線資料流">
+  <!-- sensing group -->
+  <rect class="band" x="8" y="60" width="200" height="164" rx="10"/>
+  <text class="band-l l-sense" x="22" y="80">感測來源</text>
+  <rect class="box b-sense" x="24" y="90" width="168" height="52" rx="8"/>
+  <text class="t1" x="108" y="109" text-anchor="middle">RealSense / Gazebo</text>
+  <text class="t2" x="108" y="126" text-anchor="middle">color + depth</text>
+  <rect class="box b-sense" x="24" y="158" width="168" height="44" rx="8"/>
+  <text class="t1" x="108" y="180" text-anchor="middle" dominant-baseline="middle">底部相機</text>
+  <text class="t3" x="22" y="216">topic 由設定檔決定，見 §2.1</text>
+
+  <!-- container -->
+  <rect class="dashbox" x="232" y="48" width="560" height="140" rx="11"/>
+  <text class="band-l l-perceive" x="246" y="70">perception_container · 同一 process · 零拷貝</text>
+  <rect class="box b-perceive" x="248" y="96" width="126" height="56" rx="8"/>
+  <text class="t1 mono" x="311" y="117" text-anchor="middle" style="font-size:11px">camera_</text>
+  <text class="t1 mono" x="311" y="133" text-anchor="middle" style="font-size:11px">selector_node</text>
+  <rect class="box b-perceive" x="386" y="96" width="134" height="56" rx="8"/>
+  <text class="t1 mono" x="453" y="117" text-anchor="middle" style="font-size:11px">dnn_image_</text>
+  <text class="t1 mono" x="453" y="133" text-anchor="middle" style="font-size:11px">encoder</text>
+  <rect class="box b-perceive" x="532" y="96" width="106" height="56" rx="8"/>
+  <text class="t1 mono" x="585" y="125" text-anchor="middle" dominant-baseline="middle" style="font-size:11px">tensor_rt</text>
+  <rect class="box b-perceive" x="650" y="96" width="128" height="56" rx="8"/>
+  <text class="t1 mono" x="714" y="117" text-anchor="middle" style="font-size:11px">yolov8_</text>
+  <text class="t1 mono" x="714" y="133" text-anchor="middle" style="font-size:11px">decoder_node</text>
+
+  <!-- depth perception -->
+  <rect class="box b-decide" x="840" y="92" width="180" height="64" rx="8"/>
+  <text class="t1 mono" x="930" y="115" text-anchor="middle" style="font-size:11.5px">depth_perception</text>
+  <text class="t2" x="930" y="134" text-anchor="middle">獨立 process（Python）</text>
+
+  <!-- output -->
+  <rect class="box b-control" x="830" y="306" width="200" height="56" rx="8"/>
+  <text class="t1 mono l-control" x="930" y="328" text-anchor="middle" style="font-size:11px">/orca/perception_array</text>
+  <text class="t2" x="930" y="346" text-anchor="middle">→ 決策層</text>
+
+  <!-- camera mode -->
+  <rect class="box b-decide" x="232" y="306" width="250" height="56" rx="8"/>
+  <text class="t1 mono" x="357" y="328" text-anchor="middle" style="font-size:11px">/orca/decision/camera_mode</text>
+  <text class="t2" x="357" y="346" text-anchor="middle">來自決策層</text>
+
+  <!-- edges -->
+  <path class="edge" d="M192,116 L222,116 L222,124 L244,124" marker-end="url(#a)"/>
+  <path class="edge" d="M192,180 L222,180 L222,124 L244,124" marker-end="url(#a)"/>
+  <path class="edge" d="M374,124 L382,124" marker-end="url(#a)"/>
+  <path class="edge" d="M520,124 L528,124" marker-end="url(#a)"/>
+  <path class="edge" d="M638,124 L646,124" marker-end="url(#a)"/>
+  <path class="edge" d="M778,124 L834,124" marker-end="url(#a)"/>
+  <path class="edge dash" d="M112,90 L112,32 L930,32 L930,86" marker-end="url(#a)"/>
+  <path class="edge" d="M930,156 L930,300" marker-end="url(#a)"/>
+  <path class="edge dash" d="M357,306 L357,158" marker-end="url(#a)"/>
+  <path class="edge dash" d="M482,330 L812,330 L812,140 L834,140" marker-end="url(#a)"/>
+
+  <text class="t3 mono" x="380" y="204" text-anchor="middle">/orca/selected/image_raw</text>
+  <text class="t3 mono" x="524" y="204" text-anchor="middle">/tensor_pub</text>
+  <text class="t3 mono" x="644" y="204" text-anchor="middle">tensor_sub</text>
+  <text class="t3 mono" x="812" y="204" text-anchor="middle">/detections_output</text>
+  <text class="t3" x="812" y="220" text-anchor="middle">Detection2DArray</text>
+  <text class="t3" x="500" y="26" text-anchor="middle">depth 影像直送（不經推論管線）</text>
+  <text class="t3" x="366" y="240">訂閱 mode</text>
+  <text class="t3" x="700" y="322">訂閱 mode</text>
+</svg>
+<figcaption><b>感知管線。</b>實線＝資料流，虛線＝模式訂閱與旁路的深度影像。
+編碼 → 推論 → 解碼三步在同一 process 內以 NITROS 零拷貝傳張量，不經 DDS 序列化。</figcaption>
+<div class="legend">
+  <i><span class="swatch"></span>資料流</i>
+  <i><span class="swatch d"></span>模式訂閱 / 旁路</i>
+</div>
+</figure>
+
+<h3 id="s2-1">2.1 輸入話題（實機 vs 模擬）<a class="anchor" href="#s2-1">#</a></h3>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>用途</th><th><code>perception_params.yaml</code>（實機）</th><th><code>simulation_params.yaml</code>（模擬）</th></tr></thead>
+<tbody>
+<tr><td>前相機影像</td><td><code class="t">/orca/color/image_raw</code></td><td><code class="t">/$(ns)/color/image_raw</code></td></tr>
+<tr><td>前相機 info</td><td><code class="t">/orca/color/camera_info</code></td><td><code class="t">/$(ns)/color/camera_info</code></td></tr>
+<tr><td>底部相機</td><td><code class="t">/orca/usb_cam/image_raw</code></td><td><code class="t">/$(ns)/camera/bottom/image_raw</code></td></tr>
+<tr><td>深度影像</td><td><code class="t">/orca/aligned_depth_to_color/image_raw</code></td><td><code class="t">/$(ns)/depth/image_raw</code></td></tr>
+<tr><td>深度 info</td><td><code class="t">/orca/color/camera_info</code></td><td><code class="t">/$(ns)/depth/camera_info</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<p>兩份 YAML 的差異<b>只有</b>這五組話題與 <code>use_viz</code>，其餘（模型 profile、門檻、穩定度參數）完全相同。
+選哪份由 <code>make</code> 的 <code>SIM</code> 推導。</p>
+
+<h3 id="s2-2">2.2 逐 package<a class="anchor" href="#s2-2">#</a></h3>
+
+<h4><code>camera_selector</code> <span class="tag perceive">C++ · composable</span></h4>
+<p>依 mode 轉發影像來源並對齊時間戳。</p>
+<div class="tbl-wrap">
+<table class="io">
+<thead><tr><th>I/O</th><th>Topic</th><th>型別</th></tr></thead>
+<tbody>
+<tr><td>Sub</td><td>前相機、底部相機的 image + camera_info</td><td><code>Image</code>、<code>CameraInfo</code></td></tr>
+<tr><td>Sub</td><td><code class="t">/orca/decision/camera_mode</code></td><td><code>String</code>（reliable + transient_local）</td></tr>
+<tr><td>Pub</td><td><code class="t">/orca/selected/image_raw</code>、<code class="t">/orca/selected/camera_info</code></td><td><code>Image</code>、<code>CameraInfo</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h4><code>isaac_ros_yolov8</code> <span class="tag perceive">改自 NVIDIA</span></h4>
+<p>改自 NVIDIA <code>isaac_ros_object_detection</code>。TensorRT 張量 → <code>Detection2DArray</code>，輸出 <code class="t">/detections_output</code>。
+自帶的獨立 launch 已 deprecated，一律透過 <code>orca_perception</code> 組裝。</p>
+
+<h4><code>depth_perception</code> <span class="tag decide">Python</span></h4>
+<p>感知到決策之間<b>唯一的橋樑</b>。2D 框 + 深度圖 → 3D 位置 + 多幀穩定度。</p>
+<div class="tbl-wrap">
+<table class="io">
+<thead><tr><th>I/O</th><th>Topic</th><th>型別</th></tr></thead>
+<tbody>
+<tr><td>Sub</td><td>深度影像、camera_info</td><td><code>Image</code>（best-effort）、<code>CameraInfo</code></td></tr>
+<tr><td>Sub</td><td><code class="t">/detections_output</code></td><td><code>Detection2DArray</code>（reliable）</td></tr>
+<tr><td>Sub</td><td><code class="t">/orca/decision/camera_mode</code></td><td><code>String</code>（transient_local）</td></tr>
+<tr><td>Pub</td><td><code class="t">/orca/perception_array</code></td><td><code>orca_interface/PerceptionArray</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="grid c2">
+  <div class="card">
+    <span class="tag sense">mode: realsense</span>
+    <h4>解算 3D 位置</h4>
+    <p>閘門用左右對稱深度取樣，一般物件用中心裁切區的百分位數深度，解算 3D <code>pose</code>。</p>
+  </div>
+  <div class="card">
+    <span class="tag neutral">mode: usb</span>
+    <h4>2D passthrough</h4>
+    <p>只做 2D passthrough（<code>distance = -1.0</code>、<code>valid = false</code>），穩定度追蹤仍運作。</p>
+  </div>
+</div>
+
+<h4><code>orca_perception</code> <span class="tag neutral">統一 launcher · 無自己的 node</span></h4>
+<p>建 container 放三個 composable node、attach <code>dnn_image_encoder</code>、獨立起 <code>depth_perception_node.py</code>
+與可選的 viz。<code>model_profiles</code> 機制依 <code>model_profile</code> 參數切換 <code>.onnx</code> 與類別數。</p>
+<pre><code>ros2 launch orca_perception perception.launch.py</code></pre>
+
+<!-- ══════════════════════════════ 3 ══════════════════════════════ -->
+<h2 id="s3"><span class="num">03</span>決策層<a class="anchor" href="#s3">#</a></h2>
+
+<p>用 <b>BehaviorTree.CPP v3</b> 而非手刻 FSM：子樹可重用、Fallback 天生支援失敗退回、
+任務流程寫在 <code>config/trees.xml</code> 換賽制不用重編譯。</p>
+
+<h3 id="s3-1">3.1 資料流<a class="anchor" href="#s3-1">#</a></h3>
+
+<figure>
+<svg viewBox="0 0 1120 330" role="img" aria-label="決策層資料流與跨堆疊 remap">
+  <text class="band-l l-sense" x="16" y="46">輸入</text>
+  <rect class="box b-sense" x="16" y="60" width="212" height="38" rx="7"/>
+  <text class="t2 mono" x="122" y="79" text-anchor="middle" dominant-baseline="middle">/orca/imu/data</text>
+  <rect class="box b-sense" x="16" y="108" width="212" height="38" rx="7"/>
+  <text class="t2 mono" x="122" y="127" text-anchor="middle" dominant-baseline="middle">/orca/perception_array</text>
+  <rect class="box b-sense" x="16" y="156" width="212" height="38" rx="7"/>
+  <text class="t2 mono" x="122" y="175" text-anchor="middle" dominant-baseline="middle">/orca/decision/start_mission</text>
+  <rect class="box b-sense" x="16" y="204" width="212" height="38" rx="7"/>
+  <text class="t2 mono" x="122" y="223" text-anchor="middle" dominant-baseline="middle">/orca/decision/flare_order</text>
+
+  <rect class="box b-decide" x="288" y="66" width="180" height="70" rx="9"/>
+  <text class="t1" x="378" y="90" text-anchor="middle">WorldModel</text>
+  <text class="t2" x="378" y="110" text-anchor="middle">IMU 航位推算</text>
+  <text class="t2" x="378" y="125" text-anchor="middle">＋ 感知融合</text>
+
+  <rect class="box b-decide" x="288" y="176" width="180" height="70" rx="9"/>
+  <text class="t1" x="378" y="200" text-anchor="middle">BT Tree</text>
+  <text class="t2 mono" x="378" y="219" text-anchor="middle">trees.xml</text>
+  <text class="t2" x="378" y="236" text-anchor="middle">@ 10 Hz tick</text>
+
+  <path class="edge" d="M228,79 L258,79 L258,88 L282,88" marker-end="url(#a)"/>
+  <path class="edge" d="M228,127 L258,127 L258,110 L282,110" marker-end="url(#a)"/>
+  <path class="edge" d="M228,175 L258,175 L258,196 L282,196" marker-end="url(#a)"/>
+  <path class="edge" d="M228,223 L258,223 L258,224 L282,224" marker-end="url(#a)"/>
+  <path class="edge" d="M378,136 L378,170" marker-end="url(#a)"/>
+
+  <text class="band-l l-decide" x="536" y="46">輸出 @ 50 Hz</text>
+  <rect class="box b-decide" x="536" y="56"  width="210" height="34" rx="7"/>
+  <text class="t2 mono" x="641" y="73"  text-anchor="middle" dominant-baseline="middle">/orca/decision/wrench</text>
+  <rect class="box b-decide" x="536" y="98"  width="210" height="34" rx="7"/>
+  <text class="t2 mono" x="641" y="115" text-anchor="middle" dominant-baseline="middle">…/desired_depth</text>
+  <rect class="box b-decide" x="536" y="140" width="210" height="34" rx="7"/>
+  <text class="t2 mono" x="641" y="157" text-anchor="middle" dominant-baseline="middle">…/hand</text>
+  <rect class="box b-decide" x="536" y="182" width="210" height="34" rx="7"/>
+  <text class="t2 mono" x="641" y="199" text-anchor="middle" dominant-baseline="middle">…/camera_mode</text>
+  <rect class="box b-danger" x="536" y="224" width="210" height="34" rx="7"/>
+  <text class="t2 mono" x="641" y="241" text-anchor="middle" dominant-baseline="middle">…/arm</text>
+  <rect class="box" x="536" y="266" width="210" height="34" rx="7"/>
+  <text class="t2 mono" x="641" y="283" text-anchor="middle" dominant-baseline="middle">…/status</text>
+
+  <path class="edge" d="M468,211 L502,211" marker-end="url(#a)"/>
+  <path class="edge thin" d="M502,73 L502,283"/>
+  <path class="edge thin" d="M502,73  L530,73"  marker-end="url(#a)"/>
+  <path class="edge thin" d="M502,115 L530,115" marker-end="url(#a)"/>
+  <path class="edge thin" d="M502,157 L530,157" marker-end="url(#a)"/>
+  <path class="edge thin" d="M502,199 L530,199" marker-end="url(#a)"/>
+  <path class="edge thin" d="M502,241 L530,241" marker-end="url(#a)"/>
+  <path class="edge thin" d="M502,283 L530,283" marker-end="url(#a)"/>
+
+  <text class="band-l l-control" x="806" y="46">remap 目標（跨堆疊）</text>
+  <rect class="box b-control" x="806" y="56"  width="300" height="34" rx="7"/>
+  <text class="t2 mono" x="956" y="73"  text-anchor="middle" dominant-baseline="middle">/&lt;ns&gt;/control/wrench_sources/decision</text>
+  <rect class="box b-control" x="806" y="98"  width="300" height="34" rx="7"/>
+  <text class="t2 mono" x="956" y="115" text-anchor="middle" dominant-baseline="middle">/&lt;ns&gt;/control/targets/depth_m</text>
+  <rect class="box b-control" x="806" y="140" width="300" height="34" rx="7"/>
+  <text class="t2 mono" x="956" y="157" text-anchor="middle" dominant-baseline="middle">/&lt;ns&gt;/actuators/electromagnet/enabled</text>
+  <rect class="box b-perceive" x="806" y="182" width="300" height="34" rx="7"/>
+  <text class="t2" x="956" y="199" text-anchor="middle" dominant-baseline="middle">回饋 camera_selector / depth_perception</text>
+  <rect class="box b-danger" x="806" y="224" width="300" height="34" rx="7"/>
+  <text class="t2 l-danger" x="956" y="241" text-anchor="middle" dominant-baseline="middle">無 remap · 控制堆疊無此介面 · 空操作</text>
+  <rect class="box" x="806" y="266" width="300" height="34" rx="7"/>
+  <text class="t2" x="956" y="283" text-anchor="middle" dominant-baseline="middle">DecisionStatus · 診斷用，不進控制堆疊</text>
+
+  <path class="edge" d="M746,73  L800,73"  marker-end="url(#a)"/>
+  <path class="edge" d="M746,115 L800,115" marker-end="url(#a)"/>
+  <path class="edge" d="M746,157 L800,157" marker-end="url(#a)"/>
+  <path class="edge dash" d="M746,199 L800,199" marker-end="url(#a)"/>
+  <path class="edge dash" d="M746,241 L800,241"/>
+  <path class="edge dash" d="M746,283 L800,283"/>
+</svg>
+<figcaption><b>決策層資料流。</b>左側為輸入，中間是世界模型與行為樹，右側是六個輸出話題與它們的
+remap 去向。<code>arm</code> 沒有下游訂閱者。</figcaption>
+</figure>
+
+<h3 id="s3-2">3.2 跨堆疊 remap（<code>decision.launch.py</code>）<a class="anchor" href="#s3-2">#</a></h3>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>內部話題</th><th>remap 目標</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code class="t">/orca/imu/data</code></td><td><code class="t">/&lt;ns&gt;/sensors/imu</code></td>
+    <td>姿態來源。少了它世界模型永遠停在建構姿態</td></tr>
+<tr><td><code class="t">/orca/decision/wrench</code></td><td><code class="t">/&lt;ns&gt;/control/wrench_sources/decision</code></td>
+    <td>運動指令上匯流排</td></tr>
+<tr><td><code class="t">/orca/decision/desired_depth</code></td><td><code class="t">/&lt;ns&gt;/control/targets/depth_m</code></td>
+    <td>深度設定點</td></tr>
+<tr><td><code class="t">/orca/decision/hand</code></td><td><code class="t">/&lt;ns&gt;/actuators/electromagnet/enabled</code></td>
+    <td>抓球電磁鐵，STM32 韌體經 micro-ROS 接收</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout danger">
+  <div class="ct">arm 通道是空的</div>
+  <p><code>/orca/decision/arm</code>（<code>ExtendArm</code> / <code>RetractArm</code>）<b>沒有 remap</b> ——
+  控制堆疊根本沒有手臂致動話題，那兩個節點目前是空操作。</p>
+</div>
+
+<h3 id="s3-3">3.3 核心元件<a class="anchor" href="#s3-3">#</a></h3>
+<div class="grid c3">
+  <div class="card">
+    <span class="tag decide">blackboard</span>
+    <h4>DecisionContext</h4>
+    <p>BT 節點共享的 blackboard：任務狀態、目標標籤、publisher。</p>
+  </div>
+  <div class="card">
+    <span class="tag decide">state</span>
+    <h4>WorldModel</h4>
+    <p>IMU 航位推算 + 感知融合，維護 <code>TrackedObject</code>；逾時的物件會被剔除。</p>
+  </div>
+  <div class="card">
+    <span class="tag control">output</span>
+    <h4>WrenchAdapter</h4>
+    <p><code>MotionCommand</code>（surge / sway / heave / yaw）→ 低通濾波後的 <code>Wrench</code>。</p>
+  </div>
+</div>
+
+<h3 id="s3-4">3.4 BT 節點與任務樹<a class="anchor" href="#s3-4">#</a></h3>
+
+<p><code>src/behavior_tree_nodes/</code> 有 <b>22 個自訂節點</b>：</p>
+<div class="grid c3">
+  <div class="card"><span class="tag perceive">搜尋</span>
+    <p><code>SearchTarget</code>、<code>SearchBottomTarget</code>、<code>SpiralSearchBottom</code></p></div>
+  <div class="card"><span class="tag decide">逼近</span>
+    <p><code>ApproachTarget</code>、<code>FinalAlignTarget</code>、<code>MoveAboveTarget</code>、<code>GoToPose</code></p></div>
+  <div class="card"><span class="tag danger">避障</span>
+    <p><code>AvoidObstacle</code></p></div>
+  <div class="card"><span class="tag control">致動</span>
+    <p><code>ExtendArm</code>、<code>GrabBall</code>、<code>RetractArm</code>、<code>DropBall</code></p></div>
+  <div class="card"><span class="tag sense">姿態</span>
+    <p><code>SetDepth</code>、<code>TurnToYaw</code>、<code>BlindForward</code>、<code>BumpFlare</code></p></div>
+  <div class="card"><span class="tag neutral">執行模型</span>
+    <p>非同步行為靠 BT tick loop 加內部逾時管理，<b>沒有用 ROS 2 action server</b>。</p></div>
+</div>
+
+<figure>
+<svg viewBox="0 0 1120 320" role="img" aria-label="trees.xml 的兩棵主樹與子樹引用">
+  <rect class="box b-decide" x="16" y="120" width="176" height="56" rx="9"/>
+  <text class="t1 mono" x="104" y="141" text-anchor="middle" style="font-size:11.5px">FinalMission</text>
+  <text class="t3" x="104" y="160" text-anchor="middle">主樹</text>
+
+  <path class="edge thin" d="M192,148 L216,148"/>
+  <path class="edge thin" d="M216,34 L216,268"/>
+  <path class="edge thin" d="M216,34  L244,34"  marker-end="url(#a)"/>
+  <path class="edge thin" d="M216,80  L244,80"  marker-end="url(#a)"/>
+  <path class="edge thin" d="M216,126 L244,126" marker-end="url(#a)"/>
+  <path class="edge thin" d="M216,172 L244,172" marker-end="url(#a)"/>
+  <path class="edge thin" d="M216,218 L244,218" marker-end="url(#a)"/>
+  <path class="edge thin" d="M216,264 L244,264" marker-end="url(#a)"/>
+
+  <rect class="box b-perceive" x="250" y="16"  width="280" height="36" rx="7"/>
+  <text class="t2" x="264" y="35" dominant-baseline="middle">① 過閘門 · <tspan class="mono l-perceive">PassGateProcedure</tspan></text>
+  <rect class="box b-perceive" x="250" y="62"  width="280" height="36" rx="7"/>
+  <text class="t2" x="264" y="81" dominant-baseline="middle">② 投球 · <tspan class="mono l-perceive">TargetAcquisition</tspan></text>
+  <rect class="box b-perceive" x="250" y="108" width="280" height="36" rx="7"/>
+  <text class="t2" x="264" y="127" dominant-baseline="middle">③ 二次過閘門 · <tspan class="mono l-perceive">PassGateProcedure</tspan></text>
+  <rect class="box" x="250" y="154" width="280" height="36" rx="7"/>
+  <text class="t2" x="264" y="173" dominant-baseline="middle">④ 通訊旗語</text>
+  <rect class="box b-perceive" x="250" y="200" width="280" height="36" rx="7"/>
+  <text class="t2" x="264" y="219" dominant-baseline="middle">⑤ 取球 · <tspan class="mono l-perceive">TargetReacquisition</tspan></text>
+  <rect class="box" x="250" y="246" width="280" height="36" rx="7"/>
+  <text class="t2" x="264" y="265" dominant-baseline="middle">⑥ 結束</text>
+
+  <rect class="box b-decide" x="596" y="120" width="200" height="56" rx="9"/>
+  <text class="t1 mono" x="696" y="141" text-anchor="middle" style="font-size:11.5px">QualificationMission</text>
+  <text class="t3" x="696" y="160" text-anchor="middle">資格賽</text>
+
+  <path class="edge thin" d="M796,148 L820,148"/>
+  <path class="edge thin" d="M820,62 L820,244"/>
+  <path class="edge thin" d="M820,62  L848,62"  marker-end="url(#a)"/>
+  <path class="edge thin" d="M820,108 L848,108" marker-end="url(#a)"/>
+  <path class="edge thin" d="M820,154 L848,154" marker-end="url(#a)"/>
+  <path class="edge thin" d="M820,200 L848,200" marker-end="url(#a)"/>
+  <path class="edge thin" d="M820,244 L848,244" marker-end="url(#a)"/>
+
+  <rect class="box" x="854" y="44"  width="250" height="36" rx="7"/>
+  <text class="t2" x="868" y="63"  dominant-baseline="middle">① 潛水</text>
+  <rect class="box b-perceive" x="854" y="90"  width="250" height="36" rx="7"/>
+  <text class="t2" x="868" y="109" dominant-baseline="middle">② <tspan class="mono l-perceive">PassGateProcedure</tspan></text>
+  <rect class="box" x="854" y="136" width="250" height="36" rx="7"/>
+  <text class="t2" x="868" y="155" dominant-baseline="middle">③ 迴轉</text>
+  <rect class="box" x="854" y="182" width="250" height="36" rx="7"/>
+  <text class="t2" x="868" y="201" dominant-baseline="middle">④ 回程</text>
+  <rect class="box" x="854" y="226" width="250" height="36" rx="7"/>
+  <text class="t2" x="868" y="245" dominant-baseline="middle">⑤ 浮出</text>
+
+  <rect x="250" y="296" width="12" height="12" rx="3" class="box b-perceive"/>
+  <text class="t3" x="270" y="303" dominant-baseline="middle">紫色＝可重用子樹（<tspan class="mono">PassGateProcedure</tspan> 三處引用）</text>
+</svg>
+<figcaption><b><code>config/trees.xml</code> 的五棵樹。</b>兩棵主樹 ＋ 三棵子樹；
+<code>PassGateProcedure</code> 在兩棵主樹中共被引用三次。</figcaption>
+</figure>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>樹</th><th>內容</th></tr></thead>
+<tbody>
+<tr><td><code>FinalMission</code></td><td>主樹。過閘門 → 投球 → 二次過閘門 → 通訊旗語 → 取球 → 結束</td></tr>
+<tr><td><code>QualificationMission</code></td><td>潛水 → 過閘門 → 迴轉 → 回程 → 浮出</td></tr>
+<tr><td><code>PassGateProcedure</code></td><td>子樹：搜尋 → 逼近 → 對正 → 盲進。<b>三處引用</b></td></tr>
+<tr><td><code>TargetAcquisition</code></td><td>子樹：搜尋藍桶 → 逼近 → 切底部相機 → 置中 → 投球 → 確認淨空</td></tr>
+<tr><td><code>TargetReacquisition</code></td><td>子樹：回到投球位置 → 找球 → 取球</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>任務由 <code class="t">/orca/decision/start_mission</code> 觸發（<code>wait_for_start.cpp</code> 這個節點存在但樹裡沒用到）。</p>
+
+<div class="callout warn">
+  <div class="ct">共用子樹的深度是呼叫端的責任</div>
+  <p><code>SetDepth</code> 是 SyncActionNode，發一次就返回、沒有還原，所以子樹裡不能寫死深度
+  —— 會蓋掉呼叫端剛設好的值。</p>
+</div>
+
+<pre><code>ros2 launch orca_decision autonomy.launch.py   # 同時拉起感知管線與決策節點</code></pre>
+
+<div class="callout danger">
+  <div class="ct">不要只跑 decision.launch.py</div>
+  <p>它只有行為樹，沒有任何節點發布 <code>/orca/perception_array</code>，世界模型永遠是空的：
+  所有搜尋／逼近節點跑到逾時，而 <code>ros2 node list</code> 與 <code>make status</code> 全都顯示健康。</p>
+  <p>它只給「單獨除錯行為樹」用（等同 <code>autonomy.launch.py use_perception:=false</code>）。</p>
+</div>
+
+<!-- ══════════════════════════════ 4 ══════════════════════════════ -->
+<h2 id="s4"><span class="num">04</span>訊息介面：<code>orca_interface</code><a class="anchor" href="#s4">#</a></h2>
+
+<p>兩層之間唯一的自訂訊息，無 node。</p>
+
+<h4><code>PerceptionArray.msg</code></h4>
+<pre><code>std_msgs/Header    header      # 沿用觸發推論的影像幀時間戳
+PerceptionObject[] objects     # 可能是空陣列</code></pre>
+
+<h4><code>PerceptionObject.msg</code></h4>
+
+<figure>
+<svg viewBox="0 0 1000 300" role="img" aria-label="bbox 座標系是 640x640 張量空間">
+  <text class="band-l l-sense" x="30" y="40">原始相機影像</text>
+  <rect class="box b-sense" x="30" y="98" width="240" height="135" rx="6"/>
+  <text class="t2" x="150" y="160" text-anchor="middle" dominant-baseline="middle">1280 × 720（例）</text>
+  <text class="t3" x="150" y="180" text-anchor="middle" dominant-baseline="middle">相機原生解析度</text>
+  <text class="t3" x="30" y="252">PerceptionObject 的座標<tspan class="l-danger" style="font-weight:700"> 不是</tspan> 這個空間</text>
+
+  <path class="edge" d="M282,165 L392,165" marker-end="url(#a)"/>
+  <text class="t3" x="337" y="150" text-anchor="middle">dnn_image_encoder</text>
+  <text class="t3" x="337" y="188" text-anchor="middle">resize</text>
+
+  <text class="band-l l-perceive" x="404" y="40">640 × 640 張量空間</text>
+  <rect class="box b-perceive" x="404" y="60" width="200" height="200" rx="6"/>
+  <path class="edge thin dash" d="M404,160 L604,160"/>
+  <path class="edge thin dash" d="M504,60 L504,260"/>
+  <circle cx="504" cy="160" r="3.5" class="ahd"/>
+  <text class="t3 mono l-decide" x="512" y="176">(320, 320)</text>
+
+  <rect x="432" y="86" width="104" height="72" rx="3" fill="none" stroke="var(--decide)" stroke-width="2"/>
+  <circle cx="484" cy="122" r="3" class="ahd"/>
+  <text class="t3 mono l-decide" x="440" y="80">bbox</text>
+  <path class="edge thin" d="M432,170 L536,170"/>
+  <text class="t3 mono" x="484" y="184" text-anchor="middle">width</text>
+  <path class="edge thin" d="M548,86 L548,158"/>
+  <path class="edge thin dash" d="M536,86 L548,86"/>
+  <path class="edge thin dash" d="M536,158 L548,158"/>
+  <text class="t3 mono" x="554" y="122">height</text>
+  <text class="t3 mono" x="490" y="116">(cx, cy)</text>
+
+  <text class="t3" x="404" y="286">影像中心＝<tspan class="mono">image_center_x / image_center_y</tspan>（decision_params.yaml）</text>
+
+  <rect class="box b-control" x="672" y="60" width="300" height="86" rx="9"/>
+  <text class="t1" x="688" y="84">pose（僅 realsense 模式有效）</text>
+  <text class="t2" x="688" y="106">相機座標系：X 右、Y 下、Z 前，單位公尺</text>
+  <text class="t2" x="688" y="126">orientation 恆為單位四元數，不表示物件朝向</text>
+
+  <rect class="box" x="672" y="160" width="146" height="100" rx="9"/>
+  <text class="t1 mono l-decide" x="745" y="184" text-anchor="middle">valid</text>
+  <text class="t2" x="745" y="206" text-anchor="middle">單幀</text>
+  <text class="t3" x="745" y="226" text-anchor="middle">這一幀的深度</text>
+  <text class="t3" x="745" y="242" text-anchor="middle">是否合理</text>
+
+  <rect class="box b-control" x="826" y="160" width="146" height="100" rx="9"/>
+  <text class="t1 mono l-control" x="899" y="184" text-anchor="middle">is_stable</text>
+  <text class="t2" x="899" y="206" text-anchor="middle">多幀</text>
+  <text class="t3" x="899" y="226" text-anchor="middle">命中次數 · 位置標準差</text>
+  <text class="t3" x="899" y="242" text-anchor="middle">· 信心 三門檻同時滿足</text>
+</svg>
+<figcaption><b>座標空間與兩種有效性旗標。</b>
+<code>valid</code> 篩掉「這一幀深度壞掉」，<code>is_stable</code> 篩掉「目標時有時無、位置跳動」。
+決策層的 <code>WorldModel</code> 主要依賴後者。</figcaption>
+</figure>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>欄位</th><th>型別</th><th>語意</th></tr></thead>
+<tbody>
+<tr><td><code>label</code></td><td><code>string</code></td><td>由 <code>class_id</code> 查 <code>class_names</code> 反查</td></tr>
+<tr><td><code>confidence</code></td><td><code>float32</code></td><td>YOLO 原始信心分數 <code>[0, 1]</code></td></tr>
+<tr><td><code>cx</code>、<code>cy</code>、<code>width</code>、<code>height</code></td><td><code>float32</code></td>
+    <td>2D bbox。<b>座標系是送進網路前的 640×640 張量空間</b>，不是原始相機解析度。中心是 (320, 320)</td></tr>
+<tr><td><code>pose</code></td><td><code>geometry_msgs/Pose</code></td>
+    <td>相對 AUV 的 3D 位置，公尺，相機座標系（X 右、Y 下、Z 前）。<b>只有 realsense 模式有效</b>。
+        <code>orientation</code> 恆為單位四元數，不表示物件朝向</td></tr>
+<tr><td><code>distance</code></td><td><code>float32</code></td><td>距離（公尺）。usb 模式或深度不合理時為 <code>-1.0</code></td></tr>
+<tr><td><code>valid</code></td><td><code>bool</code></td><td><b>單幀</b>深度合理性</td></tr>
+<tr><td><code>is_stable</code></td><td><code>bool</code></td><td><b>多幀</b>穩定度：命中次數、位置標準差、信心三個門檻同時滿足</td></tr>
+</tbody>
+</table>
+</div>
+
+<h4><code>DecisionStatus.msg</code></h4>
+<p><code>header</code>、<code>mission_phase</code>、<code>current_action</code>、<code>target_label</code>、
+<code>target_position</code>、<code>target_locked</code>、<code>is_recovering</code>、<code>mission_time</code>、
+<code>camera_mode</code>、<code>debug</code></p>
+
+<!-- ══════════════════════════════ 5 ══════════════════════════════ -->
+<h2 id="s5"><span class="num">05</span>設定與模型<a class="anchor" href="#s5">#</a></h2>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>檔案</th><th>內容</th></tr></thead>
+<tbody>
+<tr><td><code>perception_pipeline/orca_perception/config/perception_params.yaml</code></td><td>感知管線（實機）</td></tr>
+<tr><td><code>perception_pipeline/orca_perception/config/simulation_params.yaml</code></td><td>感知管線（模擬）</td></tr>
+<tr><td><code>orca_decision/config/decision_params.yaml</code></td><td>決策參數</td></tr>
+<tr><td><code>orca_decision/config/trees.xml</code></td><td>任務樹</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout note">
+  <div class="ct">單一來源</div>
+  <p><code>decision_params.yaml</code> 的 <code>image_center_x</code> / <code>image_center_y</code>（320 / 320）是偵測影像中心的
+  <b>單一來源</b>，四個 BT 節點都讀它。不要在節點裡另外寫常數。</p>
+</div>
+
+<h3 id="s5-model"><code>model/</code><a class="anchor" href="#s5-model">#</a></h3>
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>檔案</th><th>profile</th><th>類別數</th><th>狀態</th></tr></thead>
+<tbody>
+<tr><td><code>finals.onnx</code></td><td><code>finals</code>（預設）</td><td>7</td>
+    <td><span class="tag control">使用中</span> 決賽用。<b>模擬也用這個</b></td></tr>
+<tr><td><code>qualification.onnx</code></td><td><code>qualification</code></td><td>1</td>
+    <td><span class="tag control">使用中</span> 資格賽，只偵測 <code>gate</code></td></tr>
+<tr><td><code>sim_best.onnx</code></td><td>—</td><td>7</td>
+    <td><span class="tag danger">不要用</span> 輸出形狀與 <code>finals.onnx</code> 相同可直接替換，
+        但辨識率很低、會把泳池底部格線判成 gate</td></tr>
+<tr><td><code>best_conti.onnx</code>、<code>best_pretrain.onnx</code></td><td>—</td><td>—</td>
+    <td><span class="tag neutral">未引用</span> 沒有被任何 config 引用，推測是訓練 checkpoint</td></tr>
+</tbody>
+</table>
+</div>
+
+<div class="callout warn">
+  <div class="ct">兩個必須手動同步的真相來源</div>
+  <p><code>model_profile</code> 與 <code>orca_decision</code> 的 <code>main_tree_id</code>。</p>
+</div>
+
+<!-- ══════════════════════════════ 6 ══════════════════════════════ -->
+<h2 id="s6"><span class="num">06</span><code>mavros_config</code><a class="anchor" href="#s6">#</a></h2>
+
+<p>只有兩個 YAML，沒有 launch 也沒有 node。MAVROS 被限縮成只讀飛控 IMU：</p>
+<pre><code>plugin_blacklist: ['*']
+plugin_allowlist: ['imu', 'sys_time', 'param']</code></pre>
+
+<div class="callout warn">
+  <div class="ct">目前沒有任何 launch 檔引用它</div>
+  <p>決策層的 IMU 來自控制堆疊的 <code>&lt;ns&gt;/sensors/imu</code>（見 <a href="#s3-2">§3.2</a> 的 remap）。
+  這份設定是給未來直接讀飛控 IMU 用的。</p>
+</div>
+
+<!-- ══════════════════════════════ 7 ══════════════════════════════ -->
+<h2 id="s7"><span class="num">07</span><code>legacy/</code><a class="anchor" href="#s7">#</a></h2>
+
+<p>底下有空的 <code>COLCON_IGNORE</code>，整個子樹不編譯。原始碼留在 git 供查閱，
+理由見 <a href="legacy/README.md"><code>legacy/README.md</code></a>。</p>
+
+<div class="tbl-wrap">
+<table>
+<thead><tr><th>Package</th><th>被誰取代</th></tr></thead>
+<tbody>
+<tr><td><code>sauvc_sim</code></td><td>獨立的 <code>SAUVC-Simulation</code> repo</td></tr>
+<tr><td><code>fsm_decision</code></td><td><code>orca_decision</code>（BehaviorTree.CPP）</td></tr>
+</tbody>
+</table>
+</div>
+
+<p>同批移除：<code>realsense-ros</code> submodule（與映像裡的 NVIDIA fork 重複且從未初始化）、
+<code>Dockerfile.orca</code>（被 <code>Dockerfile.orca25</code> 取代）。
+Isaac 映像也瘦身：<code>Dockerfile.orca25</code> 不再裝 <code>ignition-fortress</code> 與 <code>ros-humble-ros-gz</code>
+（實機的 Isaac 容器不跑 Gazebo，模擬有自己的容器），這一層 <b>1.1 GB → 0.3 GB</b>。</p>
+
+<div class="callout danger">
+  <div class="ct">不要為了瘦身去改下層的 Dockerfile</div>
+  <p><code>build_image_layers.sh</code> 用「Dockerfile 鏈的 md5」向 <code>nvcr.io/nvidia/isaac/ros</code> 查預建映像；
+  改動 <code>Dockerfile.base</code> / <code>.aarch64</code> / <code>.ros2_humble</code> 會讓查詢失敗，
+  Jetson 只能從頭 build <b>17.8 GB</b> 的 base，要好幾個小時。</p>
+  <p>專案自己的改動放最外層的 <code>Dockerfile.orca25</code>，不影響該 hash（已實測）。</p>
+  <p>真正的解法是<b>不在 Jetson 上 build</b>：x86 建好推 registry，Jetson 只 pull。
+  見 <code>isaac_ros_common/scripts/orca_registry.sh</code>。</p>
+</div>
+
+<!-- ══════════════════════════════ 8 ══════════════════════════════ -->
+<h2 id="s8"><span class="num">08</span><code>utils/</code><a class="anchor" href="#s8">#</a></h2>
+
+<p>非正式 package（無 <code>package.xml</code>），兩支獨立腳本：</p>
+<div class="grid c2">
+  <div class="card"><span class="tag sense">script</span>
+    <h4><code>publisher.py</code></h4>
+    <p>用 OpenCV 讀底部 USB 相機，發到 <code>/orca/usb_cam/*</code>，對接 <code>camera_selector</code>。</p></div>
+  <div class="card"><span class="tag neutral">script</span>
+    <h4><code>depth_viewer.py</code></h4>
+    <p>顯示滑鼠位置的深度值，純除錯。</p></div>
+</div>
+
+<!-- ══════════════════════════════ 9 ══════════════════════════════ -->
+<h2 id="s9"><span class="num">09</span>已知問題<a class="anchor" href="#s9">#</a></h2>
+
+<p>完整清單與驗收方式見 <a href="../docs/HANDOFF.md">docs/HANDOFF.md</a>。此 repo 專屬的殘留：</p>
+
+<div class="issues">
+  <div class="issue">
+    <div class="n">1</div>
+    <div class="body">
+      <p><b>重複且未使用的訊息定義。</b><code>perception_pipeline/depth_perception/msg/</code> 有一份重複的
+      <code>PerceptionArray</code> / <code>PerceptionObject.msg</code>，程式實際 import 的是 <code>orca_interface</code> 那份。</p>
+    </div>
+  </div>
+  <div class="issue">
+    <div class="n">2</div>
+    <div class="body">
+      <p><b>孤兒模型檔。</b><code>model/best_conti.onnx</code>、<code>model/best_pretrain.onnx</code> 沒有被任何 config 引用。</p>
+    </div>
+  </div>
+  <div class="issue">
+    <div class="n">3</div>
+    <div class="body">
+      <p><b>Task 3 目前無法成功。</b><code>trees.xml</code> 的 <code>label="ball"</code> 不在任何模型的類別表裡
+      （<code>finals.onnx</code> 7 類、<code>qualification.onnx</code> 1 類，都沒有球）。</p>
+    </div>
+  </div>
+</div>
+
+</main>
+</div>
+
+<script>
+(function(){
+  // ── theme ────────────────────────────────────────────────
+  var root = document.documentElement, KEY = 'sauvc-doc-theme';
+  var saved = null;
+  try { saved = localStorage.getItem(KEY); } catch(e){}
+  if (saved) root.setAttribute('data-theme', saved);
+  document.getElementById('theme').addEventListener('click', function(){
+    var cur = root.getAttribute('data-theme');
+    var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var next = cur ? (cur === 'dark' ? 'light' : 'dark') : (sysDark ? 'light' : 'dark');
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem(KEY, next); } catch(e){}
+  });
+
+  // ── sidebar (narrow screens) ─────────────────────────────
+  var sb = document.getElementById('sidebar'), tg = document.getElementById('navtoggle');
+  tg.addEventListener('click', function(){ sb.classList.toggle('open'); });
+  sb.addEventListener('click', function(e){ if (e.target.tagName === 'A') sb.classList.remove('open'); });
+
+  // ── scroll-spy ───────────────────────────────────────────
+  var links = [].slice.call(document.querySelectorAll('#toc a'));
+  var map = {};
+  links.forEach(function(a){ map[a.getAttribute('href').slice(1)] = a; });
+  var targets = Object.keys(map).map(function(id){ return document.getElementById(id); }).filter(Boolean);
+  var visible = new Set();
+  function paint(){
+    var best = null;
+    targets.forEach(function(t){ if (visible.has(t.id) && !best) best = t.id; });
+    if (!best) {
+      for (var i = targets.length - 1; i >= 0; i--) {
+        if (targets[i].getBoundingClientRect().top < 120) { best = targets[i].id; break; }
+      }
+    }
+    links.forEach(function(a){ a.classList.remove('active'); });
+    if (best && map[best]) map[best].classList.add('active');
+  }
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(en){
+      if (en.isIntersecting) visible.add(en.target.id); else visible.delete(en.target.id);
+    });
+    paint();
+  }, { rootMargin: '-70px 0px -70% 0px' });
+  targets.forEach(function(t){ io.observe(t); });
+  window.addEventListener('scroll', function(){ if (!visible.size) paint(); }, { passive: true });
+  paint();
+
+  // ── click-to-copy topic names ────────────────────────────
+  document.addEventListener('click', function(e){
+    var el = e.target.closest && e.target.closest('code.t');
+    if (!el) return;
+    var txt = el.textContent;
+    var done = function(){
+      el.classList.add('copied');
+      setTimeout(function(){ el.classList.remove('copied'); }, 1100);
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(done, function(){});
+    } else {
+      var ta = document.createElement('textarea');
+      ta.value = txt; document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); done(); } catch(err){}
+      document.body.removeChild(ta);
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -12,7 +12,7 @@ make up && make build
 make sim ARENA=finals SEED=2
 ```
 
-底下是單獨開發本 repo 時用的流程。系統怎麼運作見 [ARCHITECTURE.md](ARCHITECTURE.md)。
+底下是單獨開發本 repo 時用的流程。系統怎麼運作見 [ARCHITECTURE.html](ARCHITECTURE.html)。
 
 ---
 
@@ -162,6 +162,6 @@ package 移到 [`legacy/`](legacy/) 且不編譯。
 
 ## 相關文件
 
-- [ARCHITECTURE.md](ARCHITECTURE.md) —— 系統怎麼運作
+- [ARCHITECTURE.html](ARCHITECTURE.html) —— 系統怎麼運作
 - [../docs/HANDOFF.md](../docs/HANDOFF.md) —— 座標慣例、已知缺陷、驗收方式
 - [../README.md](../README.md) —— super-repo：一次啟動整套系統
