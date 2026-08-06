@@ -13,7 +13,8 @@
 # Usage:
 #   ros2 launch orca_perception perception.launch.py
 #   ros2 launch orca_perception perception.launch.py config_file:=/path/to/params.yaml
-#   ros2 launch orca_perception perception.launch.py use_viz:=true
+#   ros2 launch orca_perception perception.launch.py use_viz:=true          # X-dependent viewers
+#   ros2 launch orca_perception perception.launch.py detection_overlay:=false  # drop the GUI overlay
 
 import os
 import yaml
@@ -42,7 +43,15 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_viz',
             default_value='',           # empty → fall back to YAML value
-            description='Override use_viz from YAML (true/false). Leave empty to use YAML value.'),
+            description=('Debug viewers that open a window and therefore need an X server: '
+                         'depth_perception_viz and rqt_image_view. Override the YAML value '
+                         '(true/false); leave empty to use it.')),
+        DeclareLaunchArgument(
+            'detection_overlay',
+            default_value='true',
+            description=('Publish /yolov8_processed_image (detections drawn on the frame). '
+                         'This is what the control GUI streams, so it defaults on — the node '
+                         'only publishes a topic and needs no display, unlike use_viz.')),
         DeclareLaunchArgument(
             'namespace',
             default_value=os.environ.get('ORCA_NAMESPACE', 'orca_auv'),
@@ -61,6 +70,17 @@ def generate_launch_description():
             cfg = yaml.safe_load(f) or {}
 
         # ── Resolve use_viz: CLI arg wins; fall back to YAML ──────
+        #
+        # use_viz covers only the viewers that open a window: depth_perception_viz
+        # calls cv2.imshow inside its subscription callback and rqt_image_view is
+        # a Qt app, so both die on a host with no reachable X server — which is
+        # every HEADLESS=true run, because that path skips xhost_grant while
+        # DISPLAY stays set in the container.
+        #
+        # The YOLO overlay is deliberately NOT gated by it. That node only
+        # publishes /yolov8_processed_image and never touches a display, and the
+        # control GUI streams that topic, so folding it in here would make the
+        # GUI's detection view silently empty on every headless run.
         if use_viz_override in ('true', 'True', '1'):
             use_viz = True
         elif use_viz_override in ('false', 'False', '0'):
@@ -69,6 +89,7 @@ def generate_launch_description():
             use_viz = bool(cfg.get('launch', {}).get('use_viz', False))
 
         use_viz_str = 'true' if use_viz else 'false'
+        overlay_str = LaunchConfiguration('detection_overlay').perform(context)
 
         default_class_names = [
             'blue_drum', 'blue_flare', 'gate', 'orange_flare',
@@ -239,7 +260,7 @@ def generate_launch_description():
             name='yolov8_visualizer',
             output='screen',
             parameters=[viz_params],
-            condition=IfCondition(use_viz_str),
+            condition=IfCondition(overlay_str),
         )
 
         # ── Image viewer (optional) ────────────────────────────────
