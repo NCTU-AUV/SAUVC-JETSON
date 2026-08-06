@@ -5,7 +5,7 @@
 
 # ── Launch-level flags (read by the launch file, not passed as ROS params) ────
 launch:
-  use_viz: true
+  use_viz: false
 
 # ── Model profile selection ──────────────────────────────────────────────────
 # Use "qualification" for QualificationMission, "finals" for FinalMission.
@@ -75,10 +75,10 @@ dnn_image_encoder:
 # ── Camera selector node ───────────────────────────────────────────────────────
 /camera_selector_node:
   ros__parameters:
-    realsense_image_topic: /orca_auv/color/image_raw
-    realsense_info_topic:  /orca_auv/color/camera_info
-    usb_image_topic:       /orca_auv/camera/bottom/image_raw
-    usb_info_topic:        /orca_auv/camera/bottom/camera_info
+    realsense_image_topic: /$(ns)/color/image_raw
+    realsense_info_topic:  /$(ns)/color/camera_info
+    usb_image_topic:       /$(ns)/camera/bottom/image_raw
+    usb_info_topic:        /$(ns)/camera/bottom/camera_info
     mode_topic:            /orca/decision/camera_mode
     selected_image_topic:  /orca/selected/image_raw
     selected_info_topic:   /orca/selected/camera_info
@@ -88,8 +88,8 @@ dnn_image_encoder:
 /depth_perception:
   ros__parameters:
     # --- Input topics ---
-    depth_image_topic:        /orca_auv/depth/image_raw
-    camera_info_topic:        /orca_auv/depth/camera_info   # intrinsics read at runtime
+    depth_image_topic:        /$(ns)/depth/image_raw
+    camera_info_topic:        /$(ns)/depth/camera_info   # intrinsics read at runtime
     detections_topic:         /detections_output
     mode_topic:               /orca/decision/camera_mode
 

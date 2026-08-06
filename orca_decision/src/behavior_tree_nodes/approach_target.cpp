@@ -2,12 +2,20 @@
 #include <algorithm>
 
 namespace {
-// Detections live in the 640x640 YOLO tensor space, so the image centre is
-// (320, 320) on both axes — 240 would be right only for a 640x480 image.
-constexpr float kImageCentreX = 320.0f;
-constexpr float kImageCentreY = 320.0f;
 constexpr float kBlindSurge = 8.0f;   // used while depth is unresolved
 constexpr float kMaxSurge = 20.0f;
+// Smallest surge that actually moves the vehicle. thruster_force_to_pwm sends
+// PWM 1500 (no thrust) for any per-thruster force <= 0.392 N; pure surge splits
+// evenly across the four +/-45 deg horizontals, so force.x = 1.11 N is the
+// deadband edge, i.e. surge 1.39 at k_surge 0.8. 2.0 clears it by ~1.4x.
+// Without this floor the command decays below the deadband while still outside
+// the success threshold and the node returns RUNNING forever. Note this is not
+// the old 5.0 floor: that one also applied when we had overshot, which is what
+// turned "already too close" into a full-speed charge.
+constexpr float kMinSurge = 2.0f;
+// Ticks to keep closing in on a target whose depth never resolves before giving
+// up. The BT ticks at 10 Hz (decision_node.cpp), so 60 is 6 s.
+constexpr int kMaxBlindFrames = 60;
 }  // namespace
 
 ApproachTarget::ApproachTarget(const std::string &name,
@@ -34,12 +42,21 @@ BT::NodeStatus ApproachTarget::tick() {
   ctx_->current_action = name();
   ctx_->target_label = label;
 
-  auto obj = ctx_->world_model->getObjectNearestImageCenter(label, kImageCentreX, kImageCentreY);
+  // Single source of truth for the detection image centre — see decision_node's
+  // declaration. Do not reintroduce a local constant here.
+  const float centre_x =
+      static_cast<float>(ctx_->node->get_parameter("image_center_x").as_double());
+  const float centre_y =
+      static_cast<float>(ctx_->node->get_parameter("image_center_y").as_double());
+
+  auto obj = ctx_->world_model->getObjectNearestImageCenter(label, centre_x, centre_y);
   if (!obj.has_value()) {
     lost_frames_++;
     ctx_->debug_msg = "Target lost: " + label + " (" + std::to_string(lost_frames_) + "/8)";
     if (lost_frames_ > 8) {
       lost_frames_ = 0;
+      blind_frames_ = 0;
+      stable_frames_ = 0;
       ctx_->wrench_adapter->setCommand(MotionCommand());
       return BT::NodeStatus::FAILURE;
     }
@@ -73,7 +90,7 @@ BT::NodeStatus ApproachTarget::tick() {
   // a positive yaw command, which is a starboard turn in this stack's
   // down-positive frame — towards the target. (Verified against the simulator:
   // positive torque.z yaws the vehicle to starboard.)
-  float error_x = kImageCentreX - obj->cx;
+  float error_x = centre_x - obj->cx;
   cmd.yaw = -0.005f * error_x; // simple P control
 
   // Forward movement (decelerate as we get closer).
@@ -86,12 +103,33 @@ BT::NodeStatus ApproachTarget::tick() {
   if (obj->distance <= 0.0f) {
     // Depth not resolved yet — close in gently so the target grows in frame
     // until the depth estimate becomes valid, rather than charging at it.
+    //
+    // This branch can never SUCCEED (that needs distance > 0) and never FAILS
+    // on its own (the target is visible, so lost_frames_ stays 0), so it needs
+    // its own way out: depth_perception publishes -1.0 for every rejected gate
+    // estimate and for every frame before the depth image arrives, and a frozen
+    // depth stream makes that permanent. Without the counter the vehicle drives
+    // into whatever it is looking at.
+    blind_frames_++;
+    ctx_->debug_msg = "Approaching blind: " + label + " (" +
+                      std::to_string(blind_frames_) + "/" +
+                      std::to_string(kMaxBlindFrames) + ")";
+    if (blind_frames_ > kMaxBlindFrames) {
+      blind_frames_ = 0;
+      stable_frames_ = 0;
+      ctx_->wrench_adapter->setCommand(MotionCommand());
+      return BT::NodeStatus::FAILURE;
+    }
     cmd.surge = kBlindSurge;
   } else {
+    blind_frames_ = 0;
     const float dist_error = obj->distance - target_distance;
-    // Negative error means we overshot: clamping the low end at 0 lets the
-    // vehicle coast to a stop instead of pushing further in.
-    cmd.surge = std::clamp(8.0f * dist_error, 0.0f, kMaxSurge);
+    if (dist_error <= 0.0f) {
+      // Overshot: coast to a stop instead of pushing further in.
+      cmd.surge = 0.0f;
+    } else {
+      cmd.surge = std::clamp(8.0f * dist_error, kMinSurge, kMaxSurge);
+    }
   }
 
   ctx_->wrench_adapter->setCommand(cmd);
@@ -100,7 +138,13 @@ BT::NodeStatus ApproachTarget::tick() {
 }
 
 void ApproachTarget::halt() {
+  // Every counter, not just stable_frames_: halt() is what the enclosing
+  // Timeout calls on expiry, and RetryUntilSuccessful re-enters the node right
+  // afterwards. A carried-over blind_frames_ or lost_frames_ would make the
+  // next attempt give up early on a count it did not earn.
   stable_frames_ = 0;
+  lost_frames_ = 0;
+  blind_frames_ = 0;
   if (ctx_) {
     ctx_->wrench_adapter->setCommand(MotionCommand());
   }

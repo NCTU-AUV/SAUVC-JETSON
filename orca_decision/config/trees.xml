@@ -1,12 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <root BTCPP_format="3">
+  <!-- The transit depth is the caller's business, not this subtree's. There used
+       to be a hardcoded <SetDepth depth="0.2"/> here, which silently overwrote
+       whatever depth FinalMission had just set: SetDepth is a SyncActionNode
+       that publishes once and returns, with no restore, so entering this subtree
+       snapped the vehicle back to 0.2 m and defeated both the 0.7 m and the
+       1.1 m transits. It was invisible in QualificationMission because that
+       mission also uses 0.2.
+
+       All three call sites already run SetDepth immediately before entering, so
+       the line was redundant as well as harmful — dropping it is the whole fix.
+       (A subtree port was the obvious alternative and does not work: in
+       BT.CPP v3 a SubTree attribute remaps onto a parent blackboard *key*, not
+       a literal, so depth="{transit_depth}" resolves to nothing and the node
+       aborts at the first tick with "missing required input [depth]".) -->
   <BehaviorTree ID="PassGateProcedure">
     <Sequence>
       <RetryUntilSuccessful num_attempts="30">
         <Sequence>
           <SearchTarget label="gate"/>
-          <SetDepth depth="0.2"/>
-          <ApproachTarget label="gate" distance="3.0"/>
+          <!-- ApproachTarget only ever returns SUCCESS (close enough) or
+               FAILURE (target lost / depth never resolved). If it converges to
+               just outside `distance` it stays RUNNING, and RetryUntilSuccessful
+               only fires on FAILURE — so without a Timeout the mission hangs
+               with no diagnostic. Expiry halts the node and retries from
+               SearchTarget, which is the right recovery. -->
+          <Timeout msec="60000">
+            <ApproachTarget label="gate" distance="3.0"/>
+          </Timeout>
           <FinalAlignTarget label="gate"/>
         </Sequence>
       </RetryUntilSuccessful>
@@ -45,7 +66,7 @@
       </ReactiveFallback>
 
       <SetDepth depth="0.5"/>
-      <SubTree ID="TargetAcquisition"/>
+      <SubTree ID="TargetAcquisition" drop_pose="{drop_pose}"/>
 
       <SetCamera mode="realsense"/>
       <SetDepth depth="1.1"/>
@@ -54,7 +75,7 @@
       <SubTree ID="CommunicationTask"/>
 
       <SetDepth depth="0.5"/>
-      <SubTree ID="TargetReacquisition"/>
+      <SubTree ID="TargetReacquisition" drop_pose="{drop_pose}"/>
 
       <FinishMission/>
     </Sequence>
@@ -66,7 +87,9 @@
       <RetryUntilSuccessful num_attempts="60">
         <Sequence>
           <SearchTarget label="blue_drum"/>
-          <ApproachTarget label="blue_drum" distance="4.0"/>
+          <Timeout msec="60000">
+            <ApproachTarget label="blue_drum" distance="4.0"/>
+          </Timeout>
           <FinalAlignTarget label="blue_drum"/>
         </Sequence>
       </RetryUntilSuccessful>
@@ -88,7 +111,9 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_1}"/>
               </Timeout>
-              <ApproachTarget label="{flare_1}" distance="0.5"/>
+              <Timeout msec="45000">
+                <ApproachTarget label="{flare_1}" distance="0.5"/>
+              </Timeout>
               <FinalAlignTarget label="{flare_1}"/>
             </Sequence>
           </RetryUntilSuccessful>
@@ -104,7 +129,9 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_2}"/>
               </Timeout>
-              <ApproachTarget label="{flare_2}" distance="0.5"/>
+              <Timeout msec="45000">
+                <ApproachTarget label="{flare_2}" distance="0.5"/>
+              </Timeout>
               <FinalAlignTarget label="{flare_2}"/>
             </Sequence>
           </RetryUntilSuccessful>
@@ -120,7 +147,9 @@
               <Timeout msec="30000">
                 <SearchTarget label="{flare_3}"/>
               </Timeout>
-              <ApproachTarget label="{flare_3}" distance="0.5"/>
+              <Timeout msec="45000">
+                <ApproachTarget label="{flare_3}" distance="0.5"/>
+              </Timeout>
               <FinalAlignTarget label="{flare_3}"/>
             </Sequence>
           </RetryUntilSuccessful>

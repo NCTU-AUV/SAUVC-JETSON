@@ -13,7 +13,8 @@
 # Usage:
 #   ros2 launch orca_perception perception.launch.py
 #   ros2 launch orca_perception perception.launch.py config_file:=/path/to/params.yaml
-#   ros2 launch orca_perception perception.launch.py use_viz:=true
+#   ros2 launch orca_perception perception.launch.py use_viz:=true          # X-dependent viewers
+#   ros2 launch orca_perception perception.launch.py detection_overlay:=false  # drop the GUI overlay
 
 import os
 import yaml
@@ -42,18 +43,44 @@ def generate_launch_description():
         DeclareLaunchArgument(
             'use_viz',
             default_value='',           # empty → fall back to YAML value
-            description='Override use_viz from YAML (true/false). Leave empty to use YAML value.'),
+            description=('Debug viewers that open a window and therefore need an X server: '
+                         'depth_perception_viz and rqt_image_view. Override the YAML value '
+                         '(true/false); leave empty to use it.')),
+        DeclareLaunchArgument(
+            'detection_overlay',
+            default_value='true',
+            description=('Publish /yolov8_processed_image (detections drawn on the frame). '
+                         'This is what the control GUI streams, so it defaults on — the node '
+                         'only publishes a topic and needs no display, unlike use_viz.')),
+        DeclareLaunchArgument(
+            'namespace',
+            default_value=os.environ.get('ORCA_NAMESPACE', 'orca_auv'),
+            description=('Vehicle namespace. Expands $(ns) in the YAML topic names — '
+                         'used for topics that come from the vehicle (camera, depth), '
+                         'not for the pipeline-internal /orca/... topics.')),
     ]
 
     def create_nodes(context, *args, **kwargs):
         config_file = LaunchConfiguration('config_file').perform(context)
         use_viz_override = LaunchConfiguration('use_viz').perform(context)
+        namespace = LaunchConfiguration('namespace').perform(context).strip('/')
 
         # ── Load YAML ─────────────────────────────────────────────
         with open(config_file, 'r') as f:
             cfg = yaml.safe_load(f) or {}
 
         # ── Resolve use_viz: CLI arg wins; fall back to YAML ──────
+        #
+        # use_viz covers only the viewers that open a window: depth_perception_viz
+        # calls cv2.imshow inside its subscription callback and rqt_image_view is
+        # a Qt app, so both die on a host with no reachable X server — which is
+        # every HEADLESS=true run, because that path skips xhost_grant while
+        # DISPLAY stays set in the container.
+        #
+        # The YOLO overlay is deliberately NOT gated by it. That node only
+        # publishes /yolov8_processed_image and never touches a display, and the
+        # control GUI streams that topic, so folding it in here would make the
+        # GUI's detection view silently empty on every headless run.
         if use_viz_override in ('true', 'True', '1'):
             use_viz = True
         elif use_viz_override in ('false', 'False', '0'):
@@ -62,6 +89,7 @@ def generate_launch_description():
             use_viz = bool(cfg.get('launch', {}).get('use_viz', False))
 
         use_viz_str = 'true' if use_viz else 'false'
+        overlay_str = LaunchConfiguration('detection_overlay').perform(context)
 
         default_class_names = [
             'blue_drum', 'blue_flare', 'gate', 'orange_flare',
@@ -109,9 +137,31 @@ def generate_launch_description():
         # ── Helper: extract ros__parameters dict for a named node ──
         # We extract each node's ros__parameters sub-dict and pass it inline
         # to avoid rcl_yaml_param_parser tripping over non-standard top-level keys.
+        #
+        # `$(ns)` in any string value expands to the vehicle namespace. Only the
+        # topics that actually come from the vehicle need it — in simulation the
+        # Gazebo bridge publishes camera and depth under ORCA_NAMESPACE, so they
+        # follow it, while the /orca/... pipeline-internal topics never do. On
+        # the real robot the RealSense driver sits under a fixed /orca prefix
+        # that is unrelated to the vehicle namespace, which is why
+        # perception_params.yaml has no $(ns) at all.
+        #
+        # Writing the namespace literally made ORCA_NAMESPACE a half-working
+        # knob: decision.launch.py remapped correctly onto the new namespace
+        # while every perception node stayed subscribed to /orca_auv/..., so
+        # /orca/perception_array went permanently empty with no error anywhere
+        # and make status still looked healthy.
+        def expand(value):
+            if isinstance(value, str):
+                return value.replace('$(ns)', namespace)
+            if isinstance(value, list):
+                return [expand(item) for item in value]
+            return value
+
         def node_params(name):
             section = cfg.get(f'/{name}', cfg.get(name, {}))
-            return dict(section.get('ros__parameters', {}))
+            return {key: expand(value)
+                    for key, value in section.get('ros__parameters', {}).items()}
 
         tensor_rt_params = node_params('tensor_rt')
         yolov8_decoder_params = node_params('yolov8_decoder_node')
@@ -210,7 +260,7 @@ def generate_launch_description():
             name='yolov8_visualizer',
             output='screen',
             parameters=[viz_params],
-            condition=IfCondition(use_viz_str),
+            condition=IfCondition(overlay_str),
         )
 
         # ── Image viewer (optional) ────────────────────────────────

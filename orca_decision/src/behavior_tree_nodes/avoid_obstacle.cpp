@@ -23,18 +23,21 @@ BT::NodeStatus AvoidObstacle::tick() {
     ctx_->is_recovering = is_sticky_;
 
     auto objs = ctx_->world_model->getObjects();
-    
+
+    // Single source of truth for the detection image centre — see decision_node's
+    // declaration. Do not reintroduce a bare literal here.
+    const double centre_x = ctx_->node->get_parameter("image_center_x").as_double();
+
     std::set<std::string> flares = {"orange_flare", "red_flare", "blue_flare", "yellow_flare"};
-    
+
     bool danger = false;
     TrackedObject danger_obj;
 
     for (const auto& obj : objs) {
         if (flares.count(obj.label)) {
-            // Check if distance < threshold and near center
-            // Assume image width 640, center is 320, near center is say within 100 pixels
-            // Distance threshold say 1.5m
-            if (obj.distance > 0 && obj.distance < 2.0 && std::abs(obj.cx - 320.0) < 200.0) {
+            // Close enough to hit, and roughly ahead of us rather than off to
+            // the side. 200 px of a 640-wide tensor is about the middle 62%.
+            if (obj.distance > 0 && obj.distance < 2.0 && std::abs(obj.cx - centre_x) < 200.0) {
                 danger = true;
                 danger_obj = obj;
                 break;
@@ -52,9 +55,9 @@ BT::NodeStatus AvoidObstacle::tick() {
         
         MotionCommand cmd;
         cmd.surge = 5.0f; // small forward
-        // Sway away from object. If obj is to the right (cx > 320), sway left (negative).
-        // If obj is to the left (cx < 320), sway right (positive).
-        if (danger_obj.cx > 320.0f) {
+        // Sway away from the object: if it is right of centre, sway left
+        // (negative); if left of centre, sway right (positive).
+        if (danger_obj.cx > centre_x) {
             cmd.sway = -10.0f; 
         } else {
             cmd.sway = 10.0f;

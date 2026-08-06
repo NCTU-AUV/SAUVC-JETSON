@@ -16,7 +16,7 @@ Implemented as a **composable node** (C++ component) for zero-copy intra-process
 | `/orca/color/camera_info` | `sensor_msgs/CameraInfo` | RealSense camera intrinsics |
 | `/orca/usb_cam/image_raw` | `sensor_msgs/Image` | USB camera image |
 | `/orca/usb_cam/camera_info` | `sensor_msgs/CameraInfo` | USB camera intrinsics |
-| `/orca/camera_mode` | `std_msgs/String` | Mode command: `"realsense"` or `"usb"` |
+| `/orca/decision/camera_mode` | `std_msgs/String` | Mode command: `"realsense"` or `"usb"` |
 
 ### Published Topics
 
@@ -33,7 +33,7 @@ Implemented as a **composable node** (C++ component) for zero-copy intra-process
 | `realsense_info_topic` | `/orca/color/camera_info` | RealSense info input |
 | `usb_image_topic` | `/orca/usb_cam/image_raw` | USB camera image input |
 | `usb_info_topic` | `/orca/usb_cam/camera_info` | USB camera info input |
-| `mode_topic` | `/orca/camera_mode` | Mode selection topic |
+| `mode_topic` | `/orca/decision/camera_mode` | Mode selection topic |
 | `selected_image_topic` | `/orca/selected/image_raw` | Unified image output |
 | `selected_info_topic` | `/orca/selected/camera_info` | Unified info output |
 | `default_mode` | `realsense` | Initial camera mode |

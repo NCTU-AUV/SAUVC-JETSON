@@ -33,9 +33,11 @@ decision_node:
     move_above_timeout_sec: 150.0
     move_above_lowpass_alpha: 0.3
 
-    # Bottom camera center (pixels)
-    bottom_cam_center_x: 320.0
-    bottom_cam_center_y: 240.0
+    # 偵測影像中心（像素）。偵測值在 640x640 的 YOLO 張量空間，所以中心是
+    # (320, 320)，而且前後相機共用同一個中心。舊的 bottom_cam_center_y: 240
+    # 只對 640x480 成立，會讓每一次投球都固定偏 80 px。
+    image_center_x: 320.0
+    image_center_y: 320.0
 
     # CheckBottomClear
     check_bottom_clear_surge_speed: 15.0

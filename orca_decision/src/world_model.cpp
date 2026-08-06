@@ -101,8 +101,17 @@ void WorldModel::updateFromIMU(const sensor_msgs::msg::Imu::SharedPtr msg) {
     // Integrate velocity
     velocity_ += acc_world * dt;
 
-    // Velocity decay (friction/drag model)
-    velocity_ *= velocity_decay_;
+    // Velocity decay (friction/drag model), scaled by dt.
+    //
+    // Applying the factor once per message instead made the whole dead-reckoning
+    // gain depend on the IMU rate: with constant acceleration the steady state
+    // is a*dt*d/(1-d), i.e. inversely proportional to the publish rate, so at
+    // 50 Hz the integrated position is double what it is at 100 Hz for the same
+    // real motion, with nothing to indicate it. velocity_decay is documented as
+    // a per-100-Hz-tick factor, so normalise against that reference rate and the
+    // configured value keeps its meaning.
+    constexpr double kDecayReferenceHz = 100.0;
+    velocity_ *= std::pow(velocity_decay_, dt * kDecayReferenceHz);
 
     // Max velocity clamp
     if (velocity_.norm() > max_velocity_clamp_) {
