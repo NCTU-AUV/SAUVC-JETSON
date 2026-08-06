@@ -1,105 +1,77 @@
-# SAUVC-JETSON
+# SAUVC-JETSON —— Orca AUV 感知與決策堆疊
 
-ROS 2 workspace for the **Orca AUV**, running on Jetson Orin NX with Isaac ROS 3.2.
+跑在 **Jetson Orin NX + Isaac ROS 3.2** 的 ROS 2 workspace：
+相機輸入 → 物件偵測 → 深度估計 → BehaviorTree 任務執行 → wrench 指令。
 
-This repository contains the full autonomy stack: from camera input through object detection and depth estimation, to BehaviorTree-based mission execution.
+**平常不用直接開這個 repo。** 從 [super-repo](https://github.com/NCTU-AUV/SAUVC)
+一個指令就會把這個堆疊連同控制與模擬一起拉起來：
 
-## System Architecture
-
+```shell
+cd ../          # SAUVC super-repo
+make up && make build
+make sim ARENA=finals SEED=2
 ```
-                         ┌──────────────────────────────────────────────────────────┐
-                         │              perception_container (composable)           │
-                         │                                                          │
-  RealSense / USB  ──►   │  camera_selector ──► DNN encoder ──► TensorRT ──► YOLOv8 │
-                         └──────────────────────────────────────┬───────────────────┘
-                                                                │  /detections_output
-                                                                ▼
-                                                       depth_perception  (Python)
-                                                                │
-                                                                ▼
-                                                     /orca/perception_array
-                                                                │
-                 /orca_auv/sensors/imu  ──►  ┌──────────────────┘
-                                             ▼
-                                       decision_node  (BehaviorTree.CPP)
-                                             │
-                            ┌────────────────┼────────────────────┐
-                            ▼                ▼                    ▼
-              wrench_sources/decision   targets/depth_m    decision/status
-```
+
+底下是單獨開發本 repo 時用的流程。系統怎麼運作見 [ARCHITECTURE.md](ARCHITECTURE.md)。
+
+---
 
 ## Packages
 
-Refer to README in each package folder for more details.
+| Package | 位置 | 職責 |
+|---|---|---|
+| [`orca_interface`](orca_interface/) | `orca_interface/` | 共用訊息（`PerceptionObject`、`PerceptionArray`、`DecisionStatus`） |
+| [`camera_selector`](perception_pipeline/camera_selector/) | `perception_pipeline/` | 前相機 ↔ 底部相機即時切換（composable） |
+| [`isaac_ros_yolov8`](perception_pipeline/isaac_ros_yolov8/) | `perception_pipeline/` | YOLOv8 TensorRT 解碼 + 視覺化 |
+| [`depth_perception`](perception_pipeline/depth_perception/) | `perception_pipeline/` | 深度估計 + 多幀穩定度追蹤 |
+| [`orca_perception`](perception_pipeline/orca_perception/) | `perception_pipeline/` | 感知管線的統一 launcher 與 YAML |
+| [`orca_decision`](orca_decision/) | `orca_decision/` | BehaviorTree.CPP 任務決策 |
 
-| Package | Location | Description |
-|---------|----------|-------------|
-| [`orca_interface`](orca_interface/) | `src/orca_interface` | Shared message definitions (`PerceptionObject`, `PerceptionArray`, `DecisionStatus`) |
-| [`camera_selector`](perception_pipeline/camera_selector/) | `src/perception_pipeline/camera_selector` | Runtime RealSense ↔ USB camera switching (composable node) |
-| [`isaac_ros_yolov8`](perception_pipeline/isaac_ros_yolov8/) | `src/perception_pipeline/isaac_ros_yolov8` | YOLOv8 TensorRT decoder + visualiser |
-| [`depth_perception`](perception_pipeline/depth_perception/) | `src/perception_pipeline/depth_perception` | Depth estimation + multi-frame stability tracking |
-| [`orca_perception`](perception_pipeline/orca_perception/) | `src/perception_pipeline/orca_perception` | Unified perception launcher & YAML config |
-| [`orca_decision`](orca_decision/) | `src/orca_decision` | BehaviorTree.CPP mission decision system |
+---
 
-## Quick Start
+## 單獨開發
 
-### 1. Prerequisites
+### 1. 前置
 
-Follow the [Isaac ROS Getting Started](https://nvidia-isaac-ros.github.io/v/release-3.2/getting_started/index.html) guide to set up your workspace for Isaac ROS 3.2.
-Complete **"Compute Setup"** and **"Developer Environment Setup"** (mind your platform: x86 / Jetson).
+依 [Isaac ROS Getting Started](https://nvidia-isaac-ros.github.io/v/release-3.2/getting_started/index.html)
+完成 **Compute Setup** 與 **Developer Environment Setup**（注意平台是 x86 還是 Jetson）。
 
-### 2. Clone the Repository
+### 2. Clone 並攤平進 `src/`
 
 ```bash
 cd $ISAAC_ROS_WS/src
 git clone --recurse-submodules git@github.com:NCTU-AUV/SAUVC-JETSON.git
-
-# Flatten into src/
-mv SAUVC-JETSON/* .
-mv SAUVC-JETSON/.g* .
-rm -rf SAUVC-JETSON
+mv SAUVC-JETSON/* . && mv SAUVC-JETSON/.g* . && rm -rf SAUVC-JETSON
 ```
 
-### 3. Configure Docker Image Layers
+### 3. 設定映像層並進容器
 
 ```bash
 touch ~/.isaac_ros_common-config
 echo "CONFIG_IMAGE_KEY=ros2_humble.realsense.orca25" >> ~/.isaac_ros_common-config
-```
-
-### 4. Set Up Alias & Enter Container
-
-```bash
 echo "alias isa='cd ~/workspaces/isaac_ros-dev/src/isaac_ros_common && ./scripts/run_dev.sh'" >> ~/.bashrc
 source ~/.bashrc
-isa    # builds the image on first run (~40 min), then enters bash
+isa    # 第一次會 build 映像（約 40 分鐘），之後直接進 bash
 ```
 
-> **Do not build this image on the Jetson if you can avoid it.** The image is
-> ~20 GB of content, 86% of which comes from NVIDIA's base layer (Triton +
-> CUDA devel + PyTorch + TensorRT) — nothing we can trim. Build it once on an
-> x86 machine, push it to a registry, and `pull` everywhere else:
+從任何新終端機再跑 `isa` 就會接進**同一個容器**。
+
+> **能不在 Jetson 上 build 就不要。** 映像約 20 GB，其中 86% 來自 NVIDIA 的
+> base layer（Triton + CUDA devel + PyTorch + TensorRT），沒有可以砍的空間。
+> 在 x86 機器建一次推 registry，其他地方只 pull：
 >
 > ```bash
-> # on the x86 build machine
-> ./scripts/orca_registry.sh build --arm64
+> ./scripts/orca_registry.sh build --arm64   # x86 建置機
 > ./scripts/orca_registry.sh push
->
-> # on the Jetson
-> ./scripts/orca_registry.sh pull
-> isa    # now reuses the pulled image instead of rebuilding
+> ./scripts/orca_registry.sh pull            # Jetson
 > ```
 >
-> Also: **never edit `docker/Dockerfile.base`, `.aarch64` or `.ros2_humble`.**
-> `build_image_layers.sh` looks up NVIDIA's prebuilt images by an md5 of the
-> Dockerfile chain — changing any of those files invalidates the lookup and
-> forces a multi-hour from-scratch build of the 17.8 GB base. Project-specific
-> changes belong in `docker/Dockerfile.orca25`, the outermost layer, which does
-> not affect that hash.
+> **也絕對不要改 `docker/Dockerfile.base`、`.aarch64` 或 `.ros2_humble`。**
+> `build_image_layers.sh` 用 Dockerfile 鏈的 md5 去查 NVIDIA 的預建映像；
+> 改動任何一個都會讓查詢失效，逼 Jetson 從頭 build 17.8 GB 的 base，要好幾個小時。
+> 專案自己的改動放最外層的 `docker/Dockerfile.orca25`，不影響那個 hash。
 
-To open additional terminals inside the **same container**, simply run `isa` from any new terminal.
-
-### 5. Build the Workspace
+### 4. Build
 
 ```bash
 cd /workspaces/isaac_ros-dev
@@ -109,75 +81,87 @@ source install/setup.bash
 
 ---
 
-## Running the Full Pipeline
+## 啟動
 
-After entering the container with `isa`, open **three terminals** (each running `isa` to attach to the same container).
-
-### Terminal 1 — Perception Pipeline
+**一個指令就好** —— `autonomy.launch.py` 同時拉起感知管線與決策節點：
 
 ```bash
-ros2 launch orca_perception perception.launch.py \
-  config_file:=src/perception_pipeline/orca_perception/config/simulation_params.yaml
-```
-
-This launches the full perception stack: camera selector → DNN encoder → TensorRT → YOLOv8 decoder → depth perception.
-
-### Terminal 2 — Decision Node
-
-```bash
+cd src/orca_decision                                  # trees.xml 是相對路徑，必須從這裡啟動
 ros2 launch orca_decision autonomy.launch.py
 ```
 
-This starts the BehaviorTree-based decision node, subscribing to perception output and IMU.
-
-### Terminal 3 — Start Mission & Monitor
+模擬情境要指定感知設定（相機話題掛在載具 namespace 底下，與實機不同）：
 
 ```bash
-# Trigger mission start
+ros2 launch orca_decision autonomy.launch.py perception_config:=simulation_params.yaml
+```
+
+| 參數 | 預設 | 說明 |
+|---|---|---|
+| `perception_config` | 空（實機） | 裸檔名，解析到 `orca_perception/config/`。模擬用 `simulation_params.yaml` |
+| `use_perception` | `true` | `false` 只跑行為樹 |
+| `use_viz` | 用 YAML 值 | 感知視覺化，需要 X server |
+| `namespace` | `$ORCA_NAMESPACE` | 載具 namespace，決定 remap 目標與 YAML 裡 `$(ns)` 的展開 |
+
+> **不要分別跑 `perception.launch.py` 與 `decision.launch.py`。**
+> `autonomy.launch.py` 已經包含前者，兩個一起跑會有兩條感知管線同時搶 GPU 與話題。
+> `decision.launch.py` 單獨跑則完全沒有感知 —— 世界模型永遠是空的，所有搜尋／逼近
+> 節點跑到逾時，而 `ros2 node list` 全都顯示健康。
+
+啟動任務：
+
+```bash
 ros2 topic pub --once /orca/decision/start_mission std_msgs/msg/Bool 'data: true'
 ```
 
-Monitor the system with:
-
-```bash
-# Decision status (mission phase, current BT action, target lock, etc.)
-ros2 topic echo /orca/decision/status
-
-# Wrench output sent to thruster allocation
-ros2 topic echo /orca_auv/control/wrench_sources/decision
-```
+載具要能動，控制堆疊那側還得先 arm，見 [super-repo README](../README.md#使用)。
 
 ---
 
-## Gazebo Simulation
-
-Simulation lives in its own repository and its own container:
-[SAUVC-Simulation](https://github.com/NCTU-AUV/SAUVC-Simulation). Start the
-Gazebo world there, then run the perception + decision pipeline here with
-`simulation_params.yaml` — the two containers share one ROS 2 graph.
-
-Gazebo is deliberately **not** installed in this image any more (it used to be,
-duplicating the simulation container for no benefit). The old in-repo
-`sauvc_sim` package now lives in [`legacy/`](legacy/) and is not built.
-
-> Cross-container discovery requires `RMW_IMPLEMENTATION`, `ROS_DOMAIN_ID` and
-> the DDS transport to match across every container. In particular
-> `FASTDDS_BUILTIN_TRANSPORTS=UDPv4` — without it Fast DDS advertises shared
-> memory locators that the other containers cannot reach, and participants
-> match but data never flows, with no error message at all.
-
-## Useful Debug Commands
+## 除錯
 
 ```bash
-# List all active nodes / topics
-ros2 node list
-ros2 topic list
-
-# Inspect a specific topic
-ros2 topic info /orca/perception_array
-ros2 topic echo /orca/perception_array
-
-# Check node parameters
-ros2 param list /decision_node
-ros2 param get /decision_node main_tree_id
+ros2 topic echo /orca/decision/status              # 任務階段、目前 BT 動作、目標鎖定
+ros2 topic echo /orca/perception_array             # 感知輸出
+ros2 topic hz /orca/selected/image_raw             # 影像有沒有進來
+ros2 param get /decision_node main_tree_id         # 現在跑哪棵樹
 ```
+
+首次啟動 TensorRT 會重建 CUDA engine，**要好幾分鐘**，期間
+`/orca/perception_array` 不會有資料。這不是故障。
+
+---
+
+## 設定
+
+| 檔案 | 內容 |
+|---|---|
+| `perception_pipeline/orca_perception/config/perception_params.yaml` | 感知管線（實機話題） |
+| `perception_pipeline/orca_perception/config/simulation_params.yaml` | 感知管線（模擬話題，用 `$(ns)`） |
+| `orca_decision/config/decision_params.yaml` | 決策參數 |
+| `orca_decision/config/trees.xml` | 任務樹 |
+
+`model_profile`（感知）與 `main_tree_id`（決策）是兩個必須手動同步的真相來源。
+
+---
+
+## 模擬
+
+模擬有自己的 repo 與容器：[SAUVC-Simulation](https://github.com/NCTU-AUV/SAUVC-Simulation)。
+在那邊起 Gazebo，這邊用 `simulation_params.yaml` 啟動 —— 兩個容器共用同一個 ROS 2 graph。
+
+Gazebo 已刻意**不再**裝進本映像（以前有，與模擬容器重複），舊的 `sauvc_sim`
+package 移到 [`legacy/`](legacy/) 且不編譯。
+
+> 跨容器 discovery 需要 `RMW_IMPLEMENTATION`、`ROS_DOMAIN_ID` 與 DDS transport
+> 三者在每個容器都一致，特別是 `FASTDDS_BUILTIN_TRANSPORTS=UDPv4`。
+> 少了它 Fast DDS 會宣告其他容器搆不到的共享記憶體 locator，participant 互相
+> match 到但資料永遠走不通，**而且沒有任何錯誤訊息**。
+
+---
+
+## 相關文件
+
+- [ARCHITECTURE.md](ARCHITECTURE.md) —— 系統怎麼運作
+- [../docs/HANDOFF.md](../docs/HANDOFF.md) —— 座標慣例、已知缺陷、驗收方式
+- [../README.md](../README.md) —— super-repo：一次啟動整套系統
