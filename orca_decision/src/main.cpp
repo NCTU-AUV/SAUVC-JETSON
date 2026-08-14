@@ -172,6 +172,24 @@ void RegisterBehaviorTreeNodes(BT::BehaviorTreeFactory& factory, std::shared_ptr
             node->setContext(ctx);
             return node;
         });
+
+    // ============================================================
+    // 新生實作區（方案 B）—— TODO(5)
+    // ============================================================
+    // 行為樹引擎只認得「註冊過」的節點名稱。在這裡把 StudentQualTask 註冊起來
+    // 之前，trees.xml 裡不能出現 <StudentQualTask> —— BT.CPP 在**載入 XML 的
+    // 當下**就會逐一檢查節點名稱，遇到不認識的就整份檔案載入失敗，連
+    // FinalMission 一起陪葬（決策節點的 log 會是 "Failed to load BehaviorTree:
+    // ... Node not recognized"）。所以 trees.xml 裡那棵 StudentMission 是先
+    // 註解掉的，順序是：先註冊，再取消註解。
+    //
+    // 照著上面任何一個 registerBuilder<...> 的樣子寫一份就好。三件事不能少：
+    //   1. 這個檔案最上面要 #include "orca_decision/student_qual_task.hpp"
+    //   2. 註冊名稱要和 XML 上寫的標籤一字不差
+    //   3. lambda 裡要呼叫 node->setContext(ctx)
+    //
+    // 第 3 點是最容易漏的：漏掉之後仍然編得過、也載入得了，但節點裡的 ctx_
+    // 會是空的，你的 tick() 第一行就會走進黑板備援那條路。
 }
 
 int main(int argc, char** argv) {

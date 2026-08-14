@@ -52,6 +52,9 @@ set(SOURCES
   src/behavior_tree_nodes/retract_arm.cpp
   src/behavior_tree_nodes/wait_for_start.cpp
   src/behavior_tree_nodes/finish_mission.cpp
+  # 新生實作區（方案 B）。骨架就編得過，所以 clone 下來的第一次 build 一定會成功；
+  # 沒填 TODO 之前這個節點只會回報 SUCCESS 而不動作。
+  src/behavior_tree_nodes/student_qual_task.cpp
 )
 
 add_executable(decision_node ${SOURCES})

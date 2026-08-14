@@ -182,4 +182,49 @@
     </Sequence>
   </BehaviorTree>
 
+  <!-- ==========================================================================
+       新生實作區
+
+       上面的樹是比賽在跑的，不要改。你的作業寫在這條線以下。
+       完整說明：docs/FRESHMAN_QUAL_TASK.md
+       ========================================================================== -->
+
+  <!-- 方案 A：只改這份 XML，不寫任何 C++。
+       資格賽的動作序列是「下潛 → 直行過閘門 → 上浮」，三個動作都已經有現成
+       的節點可以用，你的工作是把它們照順序組起來。
+
+       可以用的積木（括號內是必填屬性）：
+         <SetDepth depth="0.5"/>                        設定目標深度，公尺，發完就結束
+         <BlindForward duration="15.0" heading_lock="true"/>  盲走前進幾秒，不依賴視覺
+         <TurnToYaw degrees="180"/>                     相對現在的航向轉幾度
+
+       <Sequence> 的語意：由左到右依序執行，前一個回 SUCCESS 才會輪到下一個；
+       任何一個 FAILURE 整串就中止。想知道還有哪些節點可以用，就往上翻
+       QualificationMission —— 那是同一個任務的正式版本。 -->
+  <BehaviorTree ID="StudentSimpleQualMission">
+    <Sequence>
+      <!-- TODO(A-1)：下潛到 0.5 公尺 -->
+
+      <!-- TODO(A-2)：盲走前進 15 秒，並鎖住航向（不然會歪） -->
+
+      <!-- 上浮回水面。深度 0 就是水面，這行已經幫你寫好了 —— 它同時也是
+           「Sequence 至少要有一個子節點」的保證，把它刪掉整份 XML 會載不進去。 -->
+      <SetDepth depth="0.0"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- 方案 B：用你自己寫的 C++ 節點。
+
+       ★ 先完成 main.cpp 的 TODO(5) 把 StudentQualTask 註冊起來，再把下面這段
+         取消註解。順序反了的話，BT.CPP 在載入 XML 時就會因為不認得
+         <StudentQualTask> 而讓**整份 trees.xml** 載入失敗，連比賽用的樹都起不來。
+
+  <BehaviorTree ID="StudentMission">
+    <Sequence>
+      <StudentQualTask duration="15.0" target_depth="0.5"/>
+    </Sequence>
+  </BehaviorTree>
+
+  -->
+
 </root>

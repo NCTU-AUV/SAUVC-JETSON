@@ -1,5 +1,11 @@
 # SAUVC-JETSON —— Orca AUV 感知與決策堆疊
 
+> **你正在 `edu/newbie-2026` 教材分支上。**
+> 這條分支在 `main` 之上多了新生實作用的骨架與作業區，**不會合併回 `main`**。
+> 要動比賽用的程式碼請切回 `main`。
+>
+> 新生從這裡開始：[docs/FRESHMAN_QUAL_TASK.md](docs/FRESHMAN_QUAL_TASK.md)
+
 跑在 **Jetson Orin NX + Isaac ROS 3.2** 的 ROS 2 workspace：
 相機輸入 → 物件偵測 → 深度估計 → BehaviorTree 任務執行 → wrench 指令。
 

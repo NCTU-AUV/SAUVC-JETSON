@@ -23,17 +23,31 @@ def generate_launch_description():
             'namespace',
             default_value=os.environ.get('ORCA_NAMESPACE', 'orca_auv'),
             description='Vehicle namespace the control stack publishes under'),
+        # 要跑哪一棵樹。留空就用 decision_params.yaml 裡的 main_tree_id。
+        # 沒有這個參數的話，換一棵樹就得改 YAML、再 build 一次才會進 install
+        # space —— 新生練習時每次換樹都要付一次 colcon 的代價。
+        DeclareLaunchArgument(
+            'main_tree_id',
+            default_value='',
+            description=('BehaviorTree ID to run, overriding decision_params.yaml '
+                         '(e.g. StudentSimpleQualMission). Empty keeps the YAML value.')),
     ]
 
     def create_nodes(context, *args, **kwargs):
         ns = LaunchConfiguration('namespace').perform(context).strip('/')
+        main_tree_id = LaunchConfiguration('main_tree_id').perform(context).strip()
+
+        # 後面的 dict 覆蓋前面 YAML 的同名參數；留空時整個不加，YAML 說了算。
+        parameters = [config_file]
+        if main_tree_id:
+            parameters.append({'main_tree_id': main_tree_id})
 
         decision_node = Node(
             package='orca_decision',
             executable='decision_node',
             name='decision_node',
             output='screen',
-            parameters=[config_file],
+            parameters=parameters,
             remappings=[
                 # Attitude/heading source. Without this the world model never
                 # leaves its construction pose: TurnToYaw never converges,

@@ -10,6 +10,7 @@ Usage:
   ros2 launch orca_decision autonomy.launch.py
   ros2 launch orca_decision autonomy.launch.py perception_config:=simulation_params.yaml
   ros2 launch orca_decision autonomy.launch.py use_perception:=false
+  ros2 launch orca_decision autonomy.launch.py main_tree_id:=StudentSimpleQualMission
 """
 
 import os
@@ -43,12 +44,18 @@ def generate_launch_description():
             'use_viz',
             default_value='',
             description='Override use_viz from the perception YAML (true/false)'),
+        DeclareLaunchArgument(
+            'main_tree_id',
+            default_value='',
+            description=('BehaviorTree ID to run, overriding decision_params.yaml '
+                         '(e.g. StudentSimpleQualMission). Empty keeps the YAML value.')),
     ]
 
     def create_actions(context, *args, **kwargs):
         namespace = LaunchConfiguration('namespace').perform(context)
         perception_config = LaunchConfiguration('perception_config').perform(context)
         use_viz = LaunchConfiguration('use_viz').perform(context)
+        main_tree_id = LaunchConfiguration('main_tree_id').perform(context).strip()
 
         # launch 自己的條件語意：strip + lower，接受 true/1/false/0，其餘 raise。
         # 原本是拿 ('true', 'True', '1') 這個手寫 tuple 做比對，於是
@@ -89,10 +96,13 @@ def generate_launch_description():
             ))
 
         decision_share = get_package_share_directory('orca_decision')
+        decision_args = {'namespace': namespace}
+        if main_tree_id:
+            decision_args['main_tree_id'] = main_tree_id
         actions.append(IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(decision_share, 'launch', 'decision.launch.py')),
-            launch_arguments={'namespace': namespace}.items(),
+            launch_arguments=decision_args.items(),
         ))
 
         return actions
