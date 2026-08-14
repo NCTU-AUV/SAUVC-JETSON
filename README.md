@@ -122,6 +122,7 @@ ros2 topic pub --once /orca/decision/start_mission std_msgs/msg/Bool 'data: true
 
 ```bash
 ros2 topic echo /orca/decision/status              # 任務階段、目前 BT 動作、目標鎖定
+ros2 topic echo /orca/decision/status_json         # 同樣內容的 JSON 鏡像，Web GUI 用這條
 ros2 topic echo /orca/perception_array             # 感知輸出
 ros2 topic hz /orca/selected/image_raw             # 影像有沒有進來
 ros2 param get /decision_node main_tree_id         # 現在跑哪棵樹

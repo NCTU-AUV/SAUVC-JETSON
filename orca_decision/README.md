@@ -11,7 +11,8 @@ The node subscribes to perception output (`orca_interface/PerceptionArray`) and 
                            │              │ ──► /orca_auv/control/wrench_sources/decision  (Wrench)
 /orca_auv/sensors/imu  ──► │ decision_node│ ──► /orca_auv/control/targets/depth_m          (Float64)
                            │              │ ──► /orca/decision/status                      (DecisionStatus)
-/orca/decision/start   ──► └──────────────┘ ──► /orca/decision/camera_mode                 (String)
+/orca/decision/start   ──► │              │ ──► /orca/decision/status_json                 (String, JSON)
+                           └──────────────┘ ──► /orca/decision/camera_mode                 (String)
 ```
 
 ### Core Components
@@ -52,6 +53,7 @@ The node subscribes to perception output (`orca_interface/PerceptionArray`) and 
 | `main_tree_id` | `QualificationMission` | Root tree to execute |
 | `align_yaw_threshold` | 0.1 | Yaw alignment tolerance (rad) |
 | `align_distance_threshold` | 0.5 | Distance alignment tolerance (m) |
+| `status_json_rate_hz` | 5.0 | Rate of the JSON status mirror; 0 disables it |
 
 ### Mission Trees (`config/trees.xml`)
 
@@ -96,6 +98,12 @@ ros2 topic pub --once /orca/decision/start_mission std_msgs/msg/Bool 'data: true
 ```bash
 # Decision status (mission phase, current action, target lock, etc.)
 ros2 topic echo /orca/decision/status
+
+# Same fields as JSON. Published whether or not the mission is running, so it
+# also distinguishes "not started" and "finished" from a dead node — which the
+# DecisionStatus topic above cannot, since it goes silent when the tree stops.
+# This is what the control stack's Web GUI shows in its Mission panel.
+ros2 topic echo --full-length /orca/decision/status_json
 
 # Wrench output
 ros2 topic echo /orca_auv/control/wrench_sources/decision

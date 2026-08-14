@@ -26,6 +26,8 @@ private:
   void registerBehaviorTree();
   void btTickLoop();
   void publishWrenchLoop();
+  orca_interface::msg::DecisionStatus buildStatus();
+  void publishStatusJson();
 
   // Callbacks
   void imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg);
@@ -59,8 +61,18 @@ private:
   rclcpp::Publisher<std_msgs::msg::Int32>::SharedPtr arm_pub_;
   rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr hand_pub_;
   rclcpp::Publisher<orca_interface::msg::DecisionStatus>::SharedPtr status_pub_;
+  // Same content as status_pub_, serialised as JSON in a std_msgs/String.
+  // DecisionStatus lives in orca_interface, which is a package of this repo and
+  // is not built into the control container, so the Web GUI node there cannot
+  // deserialise it and mission state was the one thing the operator could not
+  // see from the GUI. A String crosses that boundary with no shared package.
+  rclcpp::Publisher<std_msgs::msg::String>::SharedPtr status_json_pub_;
 
   std::string tree_xml_file_;
   std::string main_tree_id_;
   bool mission_complete_ = false;
+  // The JSON mirror is for a human watching a web page, not for control, so it
+  // is decimated off the 50 Hz wrench loop rather than given its own timer.
+  int status_json_decimation_ = 10;
+  int status_json_counter_ = 0;
 };

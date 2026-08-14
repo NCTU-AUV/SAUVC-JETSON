@@ -15,6 +15,11 @@ decision_node:
     tree_xml_file: "config/trees.xml"
     main_tree_id: "FinalMission"
 
+    # /orca/decision/status_json 的發布頻率（Hz）。這是 DecisionStatus 的 JSON
+    # 鏡像，給 control 容器的 Web GUI 用 —— 那邊沒有 orca_interface，反序列化
+    # 不了原本的訊息。從 50 Hz 的 wrench loop 抽取，設 0 可完全關掉。
+    status_json_rate_hz: 5.0
+
     # Camera switching hysteresis
     camera_switch_hysteresis: 0.5
 
