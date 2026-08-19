@@ -931,6 +931,17 @@ PerceptionObject[] objects     # 可能是空陣列</code></pre>
 <code>target_position</code>、<code>target_locked</code>、<code>is_recovering</code>、<code>mission_time</code>、
 <code>camera_mode</code>、<code>debug</code></p>
 
+<h4><code>/orca/decision/status_json</code>（<code>std_msgs/String</code>）</h4>
+<p>上面那些欄位的 JSON 鏡像，外加 <code>mission_started</code> 與 <code>mission_complete</code>。
+存在的理由是型別而不是內容：<code>DecisionStatus</code> 屬於 <code>orca_interface</code>，
+而那個 package 沒有 build 進 control 容器，所以那邊的 Web GUI 反序列化不了原訊息——
+這正是「GUI 上看不到任務狀態」的成因。<code>std_msgs/String</code> 兩個容器都有。</p>
+<p>兩點差異值得記住：頻率是 <code>status_json_rate_hz</code>（預設 5 Hz，不是 wrench loop 的
+50 Hz），而且<b>任務沒在跑時它照發</b>——<code>/orca/decision/status</code> 在行為樹停止的當下
+就靜音，於是「還沒開始」「跑完了」「節點死了」三種狀態長得一模一樣。
+<code>target_position</code> 無鎖定時是 <code>null</code> 而非 <code>NaN</code>，因為瀏覽器的
+<code>JSON.parse</code> 不接受 <code>NaN</code>，整幀會被丟掉。</p>
+
 <!-- ══════════════════════════════ 5 ══════════════════════════════ -->
 <h2 id="s5"><span class="num">05</span>設定與模型<a class="anchor" href="#s5">#</a></h2>
 

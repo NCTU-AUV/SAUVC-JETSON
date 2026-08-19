@@ -1,9 +1,68 @@
 #include "orca_decision/decision_node.hpp"
 #include <ament_index_cpp/get_package_share_directory.hpp>
 
+#include <algorithm>
+#include <cmath>
+#include <cstdio>
+#include <sstream>
+#include <string>
+
 // Forward declarations of BT Node registration (to be implemented)
 extern void RegisterBehaviorTreeNodes(BT::BehaviorTreeFactory &factory,
                                       std::shared_ptr<DecisionContext> ctx);
+
+namespace {
+
+std::string jsonEscape(const std::string &in) {
+  std::string out;
+  out.reserve(in.size());
+  for (const char c : in) {
+    switch (c) {
+    case '"':
+      out += "\\\"";
+      break;
+    case '\\':
+      out += "\\\\";
+      break;
+    case '\n':
+      out += "\\n";
+      break;
+    case '\r':
+      out += "\\r";
+      break;
+    case '\t':
+      out += "\\t";
+      break;
+    default:
+      if (static_cast<unsigned char>(c) < 0x20) {
+        char buf[7];
+        std::snprintf(buf, sizeof(buf), "\\u%04x",
+                      static_cast<unsigned int>(static_cast<unsigned char>(c)));
+        out += buf;
+      } else {
+        out += c;
+      }
+    }
+  }
+  return out;
+}
+
+// JSON has no NaN literal and the browser's JSON.parse rejects one, so a
+// non-finite value has to go out as null. target_position is NaN on every tick
+// with no target lock — by far the common case — and emitting it verbatim would
+// make the GUI drop the whole frame rather than one field.
+std::string jsonNumber(double value, int places = 3) {
+  if (!std::isfinite(value)) {
+    return "null";
+  }
+  char buf[32];
+  std::snprintf(buf, sizeof(buf), "%.*f", places, value);
+  return buf;
+}
+
+std::string jsonBool(bool value) { return value ? "true" : "false"; }
+
+}  // namespace
 
 DecisionNode::DecisionNode() : Node("decision_node") {
   ctx_ = std::make_shared<DecisionContext>();
@@ -100,6 +159,20 @@ void DecisionNode::loadParameters() {
   this->declare_parameter("drop_ball_wait_sec", 0.5);
   this->declare_parameter("actuator_wait_sec", 1.0);
 
+  // Rate of the JSON status mirror, in Hz. Only a human reads it, so it is
+  // decimated off the 50 Hz wrench loop; 5 Hz is fast enough to watch the tree
+  // move between nodes without pushing 50 websocket frames a second into a
+  // browser that repaints a handful of text fields with them.
+  this->declare_parameter("status_json_rate_hz", 5.0);
+  const double status_json_rate_hz =
+      this->get_parameter("status_json_rate_hz").as_double();
+  constexpr double kWrenchLoopHz = 50.0;
+  status_json_decimation_ =
+      status_json_rate_hz > 0.0
+          ? std::max(1, static_cast<int>(std::lround(kWrenchLoopHz /
+                                                     status_json_rate_hz)))
+          : 0;  // 0 disables the mirror entirely
+
   float k_surge = this->get_parameter("k_surge").as_double();
   float k_sway = this->get_parameter("k_sway").as_double();
   float k_yaw = this->get_parameter("k_yaw").as_double();
@@ -163,6 +236,12 @@ void DecisionNode::setupInterfaces() {
                                                    command_qos);
   status_pub_ = this->create_publisher<orca_interface::msg::DecisionStatus>(
       "/orca/decision/status", default_qos);
+  // Deliberately not remapped in decision.launch.py: the Web GUI reaches this
+  // topic the same way it reaches /orca/decision/start_mission — absolutely,
+  // across the container boundary. The two stacks share one ROS graph but not
+  // one namespace, and the GUI is the only consumer.
+  status_json_pub_ = this->create_publisher<std_msgs::msg::String>(
+      "/orca/decision/status_json", default_qos);
 
   ctx_->camera_mode_pub = camera_mode_pub_;
   ctx_->desired_depth_pub = desired_depth_pub_;
@@ -222,6 +301,12 @@ void DecisionNode::btTickLoop() {
 }
 
 void DecisionNode::publishWrenchLoop() {
+  // Runs whether or not the mission is up, unlike everything below it. The
+  // DecisionStatus topic goes silent the instant the tree stops, which leaves
+  // "not started yet", "finished a minute ago" and "the node died" looking
+  // identical from the GUI. The mirror distinguishes all three.
+  publishStatusJson();
+
   if (!ctx_->mission_started) {
     // Publish zero wrench
     geometry_msgs::msg::Wrench msg;
@@ -232,7 +317,10 @@ void DecisionNode::publishWrenchLoop() {
   auto wrench_msg = ctx_->wrench_adapter->getWrench();
   wrench_pub_->publish(wrench_msg);
 
-  // Also publish status
+  status_pub_->publish(buildStatus());
+}
+
+orca_interface::msg::DecisionStatus DecisionNode::buildStatus() {
   orca_interface::msg::DecisionStatus status;
   status.header.stamp = this->now();
   status.header.frame_id = "auv";
@@ -269,7 +357,45 @@ void DecisionNode::publishWrenchLoop() {
   status.camera_mode = ctx_->camera_mode;
   status.debug = ctx_->debug_msg;
 
-  status_pub_->publish(status);
+  return status;
+}
+
+void DecisionNode::publishStatusJson() {
+  if (status_json_decimation_ <= 0) {
+    return;
+  }
+  if (++status_json_counter_ < status_json_decimation_) {
+    return;
+  }
+  status_json_counter_ = 0;
+
+  const auto status = buildStatus();
+
+  // Hand-rolled rather than pulled in as a dependency: this is one flat object
+  // of known fields, and orca_decision has no JSON library in its build already.
+  std::ostringstream json;
+  json << "{"
+       << "\"mission_started\":" << jsonBool(ctx_->mission_started)
+       // Distinguishes a tree that ran to its end from one that never started;
+       // current_action carries which of SUCCESS/FAILURE it was.
+       << ",\"mission_complete\":" << jsonBool(mission_complete_)
+       << ",\"mission_phase\":\"" << jsonEscape(status.mission_phase) << "\""
+       << ",\"current_action\":\"" << jsonEscape(status.current_action) << "\""
+       << ",\"target_label\":\"" << jsonEscape(status.target_label) << "\""
+       << ",\"target_locked\":" << jsonBool(status.target_locked)
+       << ",\"target_position\":{"
+       << "\"x\":" << jsonNumber(status.target_position.x)
+       << ",\"y\":" << jsonNumber(status.target_position.y)
+       << ",\"z\":" << jsonNumber(status.target_position.z) << "}"
+       << ",\"is_recovering\":" << jsonBool(status.is_recovering)
+       << ",\"mission_time\":" << jsonNumber(status.mission_time, 1)
+       << ",\"camera_mode\":\"" << jsonEscape(status.camera_mode) << "\""
+       << ",\"debug\":\"" << jsonEscape(status.debug) << "\""
+       << "}";
+
+  std_msgs::msg::String msg;
+  msg.data = json.str();
+  status_json_pub_->publish(msg);
 }
 
 void DecisionNode::imuCallback(const sensor_msgs::msg::Imu::SharedPtr msg) {

@@ -43,6 +43,12 @@ def generate_launch_description():
             'use_viz',
             default_value='',
             description='Override use_viz from the perception YAML (true/false)'),
+        DeclareLaunchArgument(
+            'record_images',
+            default_value='false',
+            description=('Republish the camera feeds compressed under /orca/record/* '
+                         'for the bag recorder. Must be set together with the control '
+                         "stack's own record_images — the two stacks launch separately.")),
     ]
 
     def create_actions(context, *args, **kwargs):
@@ -76,7 +82,10 @@ def generate_launch_description():
             # namespace 一定要一起傳。少了它，decision_node 會正確 remap 到新的
             # namespace，而整條感知管線仍訂閱舊的 —— 兩邊都活著、都沒有錯誤，
             # 只有 /orca/perception_array 永遠是空的。
-            perception_args = {'namespace': namespace}
+            perception_args = {
+                'namespace': namespace,
+                'record_images': LaunchConfiguration('record_images').perform(context),
+            }
             if perception_config:
                 perception_args['config_file'] = perception_config
             if use_viz:

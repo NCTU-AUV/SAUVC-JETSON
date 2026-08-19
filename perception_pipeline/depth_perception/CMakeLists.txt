@@ -16,6 +16,7 @@ find_package(geometry_msgs REQUIRED)
 install(PROGRAMS
   scripts/depth_perception_node.py
   scripts/depth_perception_viz_node.py
+  scripts/depth_record_node.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

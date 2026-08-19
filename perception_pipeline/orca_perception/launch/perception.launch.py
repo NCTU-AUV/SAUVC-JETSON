@@ -15,6 +15,7 @@
 #   ros2 launch orca_perception perception.launch.py config_file:=/path/to/params.yaml
 #   ros2 launch orca_perception perception.launch.py use_viz:=true          # X-dependent viewers
 #   ros2 launch orca_perception perception.launch.py detection_overlay:=false  # drop the GUI overlay
+#   ros2 launch orca_perception perception.launch.py record_images:=true       # compressed feeds for the bag
 
 import os
 import yaml
@@ -58,6 +59,12 @@ def generate_launch_description():
             description=('Vehicle namespace. Expands $(ns) in the YAML topic names — '
                          'used for topics that come from the vehicle (camera, depth), '
                          'not for the pipeline-internal /orca/... topics.')),
+        DeclareLaunchArgument(
+            'record_images',
+            default_value='false',
+            description=('Republish the four camera feeds compressed, under the fixed '
+                         '/orca/record/* names the bag recorder subscribes to. Off by '
+                         'default: it costs CPU and only the recorder consumes it.')),
     ]
 
     def create_nodes(context, *args, **kwargs):
@@ -272,6 +279,87 @@ def generate_launch_description():
             condition=IfCondition(use_viz_str),
         )
 
+        # ── Compressed feeds for the bag recorder (optional) ───────
+        #
+        # The recorder runs in the control container, which has only the core
+        # image_transport package — the compression plugins live here, in the
+        # Isaac image. So the republishing has to happen on this side; the
+        # recorder just subscribes to the CompressedImage topics, which needs
+        # nothing beyond sensor_msgs.
+        #
+        # Sources come out of the same config the pipeline itself uses, so the
+        # sim/real topic split is already resolved and is not spelled out a
+        # second time here. Outputs are fixed names under /orca/record, which
+        # is what makes one recorder topic list work in both cases.
+        record_nodes = []
+        if IfCondition(LaunchConfiguration('record_images')).evaluate(context):
+            selector_params = node_params('camera_selector_node')
+            # Colour feeds go through image_transport. Depth cannot: the
+            # compressedDepth plugin quantises 32FC1 into uint16 against a hard
+            # 10 m ceiling this build exposes no parameter for, and the pool
+            # runs out to 16 m, so the far wall would come back invalid.
+            # depth_record_node handles it instead — see below.
+            feeds = [
+                ('front', selector_params.get('realsense_image_topic'), 'compressed'),
+                ('bottom', selector_params.get('usb_image_topic'), 'compressed'),
+            ]
+            # Only worth republishing if something is drawing it.
+            if IfCondition(LaunchConfiguration('detection_overlay')).evaluate(context):
+                feeds.append(('detections', '/yolov8_processed_image', 'compressed'))
+
+            for name, source, transport in feeds:
+                if not source:
+                    raise RuntimeError(
+                        f'record_images: no source topic for {name} in {config_file}')
+                record_nodes.append(Node(
+                    package='image_transport',
+                    executable='republish',
+                    name=f'record_republish_{name}',
+                    arguments=['raw', transport],
+                    # republish resolves its output as out/<transport>; remapping
+                    # the bare `out` does not reach it, because ROS 2 remapping
+                    # matches whole names rather than prefixes.
+                    remappings=[
+                        ('in', source),
+                        (f'out/{transport}', f'/orca/record/{name}/{transport}'),
+                    ],
+                    output='screen',
+                ))
+
+            # Depth is recorded as a picture, not as measurements: the same
+            # 0-10 m grayscale render the GUI's DEPTH panel shows, JPEG'd.
+            # Raw 32FC1 was ~37 MB/s, about 95% of an image-enabled bag; this
+            # is roughly two orders of magnitude less. The trade is real —
+            # a bag recorded this way can no longer be replayed through
+            # _estimate_gate, because 8 bits over 10 m is ~4 cm per code and
+            # everything past 10 m saturates. /orca/perception_array is still
+            # recorded, so what the gate logic *concluded* is preserved even
+            # though the input it concluded it from is not.
+            depth_params = node_params('depth_perception')
+            depth_source = depth_params.get('depth_image_topic')
+            if not depth_source:
+                raise RuntimeError(
+                    f'record_images: no depth_image_topic for depth_perception '
+                    f'in {config_file}')
+            record_nodes.append(Node(
+                package='depth_perception',
+                executable='depth_record_node.py',
+                name='depth_record',
+                parameters=[{
+                    # YAML first, wiring second — the two topic names are
+                    # structural, not tuning. The source has to track
+                    # depth_perception's so sim/real stays resolved in one
+                    # place, and the output name is what record_topics.yaml
+                    # subscribes to, so a YAML edit renaming either would
+                    # silently record nothing. min/max_depth_m and
+                    # jpeg_quality stay configurable.
+                    **node_params('depth_record'),
+                    'depth_image_topic': depth_source,
+                    'output_topic': '/orca/record/depth/compressed',
+                }],
+                output='screen',
+            ))
+
         return [
             perception_container,
             dnn_image_encoder_launch,
@@ -279,6 +367,6 @@ def generate_launch_description():
             depth_perception_viz_node,
             yolov8_visualizer_node,
             image_view_node,
-        ]
+        ] + record_nodes
 
     return LaunchDescription(launch_args + [OpaqueFunction(function=create_nodes)])
