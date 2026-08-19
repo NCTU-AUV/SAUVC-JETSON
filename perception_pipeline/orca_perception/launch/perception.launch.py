@@ -294,12 +294,11 @@ def generate_launch_description():
         record_nodes = []
         if IfCondition(LaunchConfiguration('record_images')).evaluate(context):
             selector_params = node_params('camera_selector_node')
-            # Colour only. Depth is recorded raw, straight off its source topic:
-            # compressedDepth quantises 32FC1 into uint16 with a hard 10 m
-            # ceiling that this build exposes no parameter for, and the pool
-            # scene runs out to 16 m — the far wall and everything behind the
-            # gate would come back invalid, which is exactly the background
-            # _estimate_gate reads to judge left/right symmetry.
+            # Colour feeds go through image_transport. Depth cannot: the
+            # compressedDepth plugin quantises 32FC1 into uint16 against a hard
+            # 10 m ceiling this build exposes no parameter for, and the pool
+            # runs out to 16 m, so the far wall would come back invalid.
+            # depth_record_node handles it instead — see below.
             feeds = [
                 ('front', selector_params.get('realsense_image_topic'), 'compressed'),
                 ('bottom', selector_params.get('usb_image_topic'), 'compressed'),
@@ -326,6 +325,40 @@ def generate_launch_description():
                     ],
                     output='screen',
                 ))
+
+            # Depth is recorded as a picture, not as measurements: the same
+            # 0-10 m grayscale render the GUI's DEPTH panel shows, JPEG'd.
+            # Raw 32FC1 was ~37 MB/s, about 95% of an image-enabled bag; this
+            # is roughly two orders of magnitude less. The trade is real —
+            # a bag recorded this way can no longer be replayed through
+            # _estimate_gate, because 8 bits over 10 m is ~4 cm per code and
+            # everything past 10 m saturates. /orca/perception_array is still
+            # recorded, so what the gate logic *concluded* is preserved even
+            # though the input it concluded it from is not.
+            depth_params = node_params('depth_perception')
+            depth_source = depth_params.get('depth_image_topic')
+            if not depth_source:
+                raise RuntimeError(
+                    f'record_images: no depth_image_topic for depth_perception '
+                    f'in {config_file}')
+            record_nodes.append(Node(
+                package='depth_perception',
+                executable='depth_record_node.py',
+                name='depth_record',
+                parameters=[{
+                    # YAML first, wiring second — the two topic names are
+                    # structural, not tuning. The source has to track
+                    # depth_perception's so sim/real stays resolved in one
+                    # place, and the output name is what record_topics.yaml
+                    # subscribes to, so a YAML edit renaming either would
+                    # silently record nothing. min/max_depth_m and
+                    # jpeg_quality stay configurable.
+                    **node_params('depth_record'),
+                    'depth_image_topic': depth_source,
+                    'output_topic': '/orca/record/depth/compressed',
+                }],
+                output='screen',
+            ))
 
         return [
             perception_container,

@@ -124,3 +124,19 @@ dnn_image_encoder:
     viz_perception_topic: /orca/perception_array
     viz_native_width:     1280
     viz_native_height:    720
+
+# ── Depth bag render (only active when record_images:=true) ───────────────────
+# Depth goes into the bag as a picture, not as measurements — the same
+# grayscale render the GUI's DEPTH panel shows, JPEG'd. Raw 32FC1 measured
+# 35.94 MB/s and dominated the bag; this measures 0.30 MB/s, 123x smaller.
+#
+# depth_image_topic is not listed: perception.launch.py passes
+# /depth_perception's, so sim/real stays resolved in one place.
+/depth_record:
+  ros__parameters:
+    min_depth_m:   0.0    # near end of the grayscale ramp (black)
+    max_depth_m:  10.0    # far end (white). Matches the GUI. The pool runs to
+                          # ~16 m, so the far wall saturates — raise this if a
+                          # run needs readable background, at the cost of
+                          # near-field contrast.
+    jpeg_quality:   80
