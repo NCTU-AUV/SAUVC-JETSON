@@ -19,19 +19,31 @@
       <RetryUntilSuccessful num_attempts="30">
         <Sequence>
           <SearchTarget label="gate"/>
-          <!-- ApproachTarget only ever returns SUCCESS (close enough) or
-               FAILURE (target lost / depth never resolved). If it converges to
-               just outside `distance` it stays RUNNING, and RetryUntilSuccessful
-               only fires on FAILURE — so without a Timeout the mission hangs
-               with no diagnostic. Expiry halts the node and retries from
-               SearchTarget, which is the right recovery. -->
           <Timeout msec="60000">
             <ApproachTarget label="gate" distance="3.0"/>
           </Timeout>
           <FinalAlignTarget label="gate"/>
         </Sequence>
       </RetryUntilSuccessful>
-      <BlindForward duration="20.0" heading_lock="true"/>
+      <!-- 資格賽專用：維持 16.0 秒 -->
+      <BlindForward duration="16.0" heading_lock="true"/>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- 決賽專用過閘門子樹：可獨立調整盲走時長 -->
+  <BehaviorTree ID="PassGateFinalsProcedure">
+    <Sequence>
+      <RetryUntilSuccessful num_attempts="30">
+        <Sequence>
+          <SearchTarget label="gate"/>
+          <Timeout msec="60000">
+            <ApproachTarget label="gate" distance="3.0"/>
+          </Timeout>
+          <FinalAlignTarget label="gate"/>
+        </Sequence>
+      </RetryUntilSuccessful>
+      <!-- 決賽專用時長：10.0 秒 -->
+      <BlindForward duration="10.0" heading_lock="true"/>
     </Sequence>
   </BehaviorTree>
 
@@ -41,15 +53,12 @@
       <SetCamera mode="realsense"/>
       <SetDepth depth="0.2"/>
 
-      <ReactiveFallback>
-        <AvoidObstacle/>
-        <SubTree ID="PassGateProcedure"/>
-      </ReactiveFallback>
+      <SubTree ID="PassGateProcedure"/>
 
       <!-- Turn 180 degrees relative to current yaw -->
       <TurnToYaw degrees="180"/>
 
-      <BlindForward duration="15.0" heading_lock="true"/>
+      <SubTree ID="PassGateProcedure"/>
       <SetDepth depth="0.0"/>
     </Sequence>
   </BehaviorTree>
@@ -62,19 +71,19 @@
 
       <ReactiveFallback>
         <AvoidObstacle sticky_time="1.0"/>
-        <SubTree ID="PassGateProcedure"/>
+        <SubTree ID="PassGateFinalsProcedure"/>
       </ReactiveFallback>
 
-      <SetDepth depth="0.5"/>
+      <SetDepth depth="0.15"/>
       <SubTree ID="TargetAcquisition" drop_pose="{drop_pose}"/>
 
       <SetCamera mode="realsense"/>
-      <SetDepth depth="1.1"/>
-      <SubTree ID="PassGateProcedure"/>
+      <SetDepth depth="0.7"/>
+      <SubTree ID="PassGateFinalsProcedure"/>
 
       <SubTree ID="CommunicationTask"/>
 
-      <SetDepth depth="0.5"/>
+      <SetDepth depth="0.15"/>
       <SubTree ID="TargetReacquisition" drop_pose="{drop_pose}"/>
 
       <FinishMission/>
@@ -86,7 +95,7 @@
       <SetCamera mode="realsense"/>
       <RetryUntilSuccessful num_attempts="60">
         <Sequence>
-          <SearchTarget label="blue_drum"/>
+          <SearchTarget label="blue_drum" yaw_speed="0.2"/>
           <Timeout msec="60000">
             <ApproachTarget label="blue_drum" distance="4.0"/>
           </Timeout>
@@ -106,13 +115,13 @@
 
       <Fallback>
         <Sequence>
-          <RetryUntilSuccessful num_attempts="3">
+          <RetryUntilSuccessful num_attempts="6">
             <Sequence>
-              <Timeout msec="30000">
-                <SearchTarget label="{flare_1}"/>
+              <Timeout msec="60000">
+                <SearchTarget label="{flare_1}" yaw_speed="0.45"/>
               </Timeout>
               <Timeout msec="45000">
-                <ApproachTarget label="{flare_1}" distance="0.5"/>
+                <ApproachTarget label="{flare_1}" distance="1.0"/>
               </Timeout>
               <FinalAlignTarget label="{flare_1}"/>
             </Sequence>
@@ -124,13 +133,13 @@
 
       <Fallback>
         <Sequence>
-          <RetryUntilSuccessful num_attempts="3">
+          <RetryUntilSuccessful num_attempts="6">
             <Sequence>
-              <Timeout msec="30000">
-                <SearchTarget label="{flare_2}"/>
+              <Timeout msec="60000">
+                <SearchTarget label="{flare_2}" yaw_speed="0.45"/>
               </Timeout>
               <Timeout msec="45000">
-                <ApproachTarget label="{flare_2}" distance="0.5"/>
+                <ApproachTarget label="{flare_2}" distance="1.0"/>
               </Timeout>
               <FinalAlignTarget label="{flare_2}"/>
             </Sequence>
@@ -142,13 +151,13 @@
 
       <Fallback>
         <Sequence>
-          <RetryUntilSuccessful num_attempts="3">
+          <RetryUntilSuccessful num_attempts="6">
             <Sequence>
-              <Timeout msec="30000">
-                <SearchTarget label="{flare_3}"/>
+              <Timeout msec="60000">
+                <SearchTarget label="{flare_3}" yaw_speed="0.45"/>
               </Timeout>
               <Timeout msec="45000">
-                <ApproachTarget label="{flare_3}" distance="0.5"/>
+                <ApproachTarget label="{flare_3}" distance="1.0"/>
               </Timeout>
               <FinalAlignTarget label="{flare_3}"/>
             </Sequence>
@@ -157,6 +166,16 @@
         </Sequence>
         <SkipFlare/>
       </Fallback>
+    </Sequence>
+  </BehaviorTree>
+
+  <!-- 撞柱專用單獨測試樹：自動下潛至 0.7m、啟用前視相機並執行撞柱 -->
+  <BehaviorTree ID="OnlyCommunicationTask">
+    <Sequence>
+      <SetCamera mode="realsense"/>
+      <SetDepth depth="0.7"/>
+      <SubTree ID="CommunicationTask"/>
+      <SetDepth depth="0.0"/>
     </Sequence>
   </BehaviorTree>
 

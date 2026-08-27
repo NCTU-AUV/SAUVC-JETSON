@@ -32,7 +32,7 @@ decision_node:
     move_above_k_sway: 0.02
     move_above_max_surge: 15.0
     move_above_max_sway: 5.0
-    move_above_reacquire_surge: 12.0
+    move_above_reacquire_surge: 5.0
     move_above_center_threshold: 20.0
     move_above_stable_frames: 10
     move_above_timeout_sec: 150.0

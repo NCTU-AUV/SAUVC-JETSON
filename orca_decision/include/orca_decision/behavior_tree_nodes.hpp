@@ -23,6 +23,8 @@ public:
     void setContext(std::shared_ptr<DecisionContext> ctx) { ctx_ = ctx; }
 private:
     std::shared_ptr<DecisionContext> ctx_;
+    int stable_frames_ = 0;
+    int sweep_direction_ = 1;
 };
 
 class ApproachTarget : public BT::ActionNodeBase {
@@ -50,6 +52,7 @@ private:
     std::shared_ptr<DecisionContext> ctx_;
     rclcpp::Time align_start_time_;
     bool aligning_ = false;
+    int lost_frames_ = 0;
 };
 
 class BlindForward : public BT::ActionNodeBase {

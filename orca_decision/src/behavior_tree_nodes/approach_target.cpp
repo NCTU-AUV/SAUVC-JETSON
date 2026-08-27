@@ -14,8 +14,8 @@ constexpr float kMaxSurge = 20.0f;
 // turned "already too close" into a full-speed charge.
 constexpr float kMinSurge = 2.0f;
 // Ticks to keep closing in on a target whose depth never resolves before giving
-// up. The BT ticks at 10 Hz (decision_node.cpp), so 60 is 6 s.
-constexpr int kMaxBlindFrames = 60;
+// up. The BT ticks at 10 Hz (decision_node.cpp), so 300 is 30 s.
+constexpr int kMaxBlindFrames = 300;
 }  // namespace
 
 ApproachTarget::ApproachTarget(const std::string &name,
@@ -60,13 +60,13 @@ BT::NodeStatus ApproachTarget::tick() {
       ctx_->wrench_adapter->setCommand(MotionCommand());
       return BT::NodeStatus::FAILURE;
     }
-    // Maintain current command or stop? If we just return RUNNING without setting command, it keeps the last command or we can just send zero wrench.
-    // The prompt just says return failure only if for more than 5 frames in sequence. We should return RUNNING in the meantime.
-    ctx_->wrench_adapter->setCommand(MotionCommand()); // stop while lost but waiting? or don't set command? Setting to zero is safer.
+    ctx_->wrench_adapter->setCommand(MotionCommand());
     return BT::NodeStatus::RUNNING;
   }
   
   lost_frames_ = 0;
+
+  float error_x = centre_x - obj->cx;
 
   ctx_->debug_msg = "Approaching: dist=" + std::to_string(obj->distance);
 
@@ -85,33 +85,18 @@ BT::NodeStatus ApproachTarget::tick() {
   // Approach logic
   MotionCommand cmd;
 
-  // Yaw correction from the box centre. cx is an absolute pixel column in the
-  // 640-wide tensor. A target right of centre gives error_x < 0 and therefore
-  // a positive yaw command, which is a starboard turn in this stack's
-  // down-positive frame — towards the target. (Verified against the simulator:
-  // positive torque.z yaws the vehicle to starboard.)
-  float error_x = centre_x - obj->cx;
-  cmd.yaw = -0.005f * error_x; // simple P control
+  // Yaw correction with deadband and clamping to avoid aggressive oscillation
+  if (std::abs(error_x) < 15.0f) {
+    cmd.yaw = 0.0f; // within deadband, zero command
+  } else {
+    cmd.yaw = std::clamp(-0.0035f * error_x, -0.3f, 0.3f);
+  }
 
   // Forward movement (decelerate as we get closer).
-  //
-  // The three cases have to stay separate. Folding "no depth yet" and "already
-  // too close" into a single `dist_error = 1000` mapped both onto *maximum*
-  // surge — so being closer than requested commanded a full-speed charge into
-  // the target, and in usb camera mode (distance is always -1.0 there) the
-  // vehicle drove blind at full speed for the node's whole lifetime.
   if (obj->distance <= 0.0f) {
-    // Depth not resolved yet — close in gently so the target grows in frame
-    // until the depth estimate becomes valid, rather than charging at it.
-    //
-    // This branch can never SUCCEED (that needs distance > 0) and never FAILS
-    // on its own (the target is visible, so lost_frames_ stays 0), so it needs
-    // its own way out: depth_perception publishes -1.0 for every rejected gate
-    // estimate and for every frame before the depth image arrives, and a frozen
-    // depth stream makes that permanent. Without the counter the vehicle drives
-    // into whatever it is looking at.
     blind_frames_++;
-    ctx_->debug_msg = "Approaching blind: " + label + " (" +
+    ctx_->debug_msg = "Approaching (visual): " + label + " (h=" +
+                      std::to_string(obj->height) + ", " +
                       std::to_string(blind_frames_) + "/" +
                       std::to_string(kMaxBlindFrames) + ")";
     if (blind_frames_ > kMaxBlindFrames) {
@@ -120,12 +105,19 @@ BT::NodeStatus ApproachTarget::tick() {
       ctx_->wrench_adapter->setCommand(MotionCommand());
       return BT::NodeStatus::FAILURE;
     }
-    cmd.surge = kBlindSurge;
+    if (std::abs(error_x) > 60.0f) {
+      cmd.surge = 0.0f; // Turn first if significantly off-center
+    } else {
+      cmd.surge = kBlindSurge;
+    }
   } else {
     blind_frames_ = 0;
     const float dist_error = obj->distance - target_distance;
     if (dist_error <= 0.0f) {
       // Overshot: coast to a stop instead of pushing further in.
+      cmd.surge = 0.0f;
+    } else if (std::abs(error_x) > 60.0f) {
+      // Too far off-center: turn first, don't drive in an arc
       cmd.surge = 0.0f;
     } else {
       cmd.surge = std::clamp(8.0f * dist_error, kMinSurge, kMaxSurge);

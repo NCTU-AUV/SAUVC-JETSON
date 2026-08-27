@@ -41,6 +41,8 @@ void WorldModel::updateFromPerception(const orca_interface::msg::PerceptionArray
         tracked.distance = obj.distance;
         tracked.cx = obj.cx;
         tracked.cy = obj.cy;
+        tracked.width = obj.width;
+        tracked.height = obj.height;
         tracked.last_seen = now;
 
         // Project position to world frame

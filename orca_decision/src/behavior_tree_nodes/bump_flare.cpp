@@ -38,6 +38,9 @@ BT::NodeStatus BumpFlare::tick() {
         started_ = true;
         start_time_ = now;
         target_yaw_ = ctx_->world_model->getYaw();
+        RCLCPP_INFO(ctx_->node->get_logger(),
+                    "BumpFlare: Starting to bump [%s] (timeout=%.1f s, surge=%.2f)",
+                    ctx_->target_label.c_str(), timeout, bump_surge);
     }
 
     double elapsed = (now - start_time_).seconds();
@@ -45,6 +48,9 @@ BT::NodeStatus BumpFlare::tick() {
         started_ = false;
         ctx_->wrench_adapter->setCommand(MotionCommand());
         ctx_->debug_msg = "BumpFlare: completed";
+        RCLCPP_INFO(ctx_->node->get_logger(),
+                    "BumpFlare: Successfully bumped [%s]! (duration=%.1f s)",
+                    ctx_->target_label.c_str(), elapsed);
         return BT::NodeStatus::SUCCESS;
     }
 

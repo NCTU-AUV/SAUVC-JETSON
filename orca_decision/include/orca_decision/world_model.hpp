@@ -18,6 +18,8 @@ struct TrackedObject {
     float distance; // Distance from AUV
     float cx;       // Camera frame cx
     float cy;       // Camera frame cy
+    float width = 0.0f;
+    float height = 0.0f;
     rclcpp::Time last_seen;
 };
 
